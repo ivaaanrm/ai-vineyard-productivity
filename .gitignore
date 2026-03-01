@@ -1,0 +1,11 @@
+.obsidian
+docs/
+data/
+.venv/
+
+uv.lock
+.claude
+
+CLAUDE.md
+
+agrixel-fair-dockerV2
