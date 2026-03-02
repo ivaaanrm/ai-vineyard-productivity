@@ -106,7 +106,7 @@ with tab_map:
         m = folium.Map(location=center, zoom_start=15)
 
     m = add_raster_overlay(m, data, profile, cmap=cmap, name=band)
-    st_folium(m, height=500, use_container_width=True, returned_objects=[])
+    st_folium(m, height=500, width="stretch", returned_objects=[])
 
     # Colorbar
     valid = data[~np.isnan(data)]
@@ -117,7 +117,7 @@ with tab_map:
             vmax=float(np.percentile(valid, 98)),
             label=band,
         )
-        st.pyplot(fig, use_container_width=False)
+        st.pyplot(fig, width="content")
 
 # ==================================================================
 # Tab 2: Time Series
@@ -185,7 +185,7 @@ with tab_ts:
                                 }
                             )
                     if stats_rows:
-                        st.dataframe(pd.DataFrame(stats_rows), use_container_width=True)
+                        st.dataframe(pd.DataFrame(stats_rows), width="stretch")
                 else:
                     st.info("No se encontraron variables con dimensión temporal.")
             else:
@@ -266,7 +266,7 @@ with tab_analysis:
         if metrics_clean:
             st.dataframe(
                 pd.DataFrame(metrics_clean, index=["Valor"]).T,
-                use_container_width=True,
+                width="stretch",
             )
 
         # Scene metadata

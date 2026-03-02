@@ -63,7 +63,7 @@ if selected_parcels:
         parcel_options,
         selected_ids=selected_parcels,
     )
-    st_folium(preview_map, height=350, use_container_width=True, returned_objects=[])
+    st_folium(preview_map, height=350, width="stretch", returned_objects=[])
 
 # ------------------------------------------------------------------
 # 4. Date range

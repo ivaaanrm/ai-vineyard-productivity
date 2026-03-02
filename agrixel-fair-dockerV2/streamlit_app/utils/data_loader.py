@@ -206,4 +206,4 @@ def find_zarr_store(sensor_key: str, parcel_id: str) -> Path | None:
 
 def load_zarr_cube(zarr_path: Path) -> xr.Dataset:
     """Open a Zarr store as an xarray Dataset."""
-    return xr.open_zarr(zarr_path)
+    return xr.open_zarr(zarr_path, consolidated=False)
