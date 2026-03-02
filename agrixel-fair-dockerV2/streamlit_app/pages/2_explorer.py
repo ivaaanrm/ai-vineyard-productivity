@@ -1,0 +1,286 @@
+"""Page 2: Data visualization & exploration."""
+
+from __future__ import annotations
+
+import numpy as np
+import pandas as pd
+import streamlit as st
+from streamlit_folium import st_folium
+
+from utils.data_loader import (
+    find_zarr_store,
+    list_bands,
+    list_parcels_with_data,
+    list_scenes,
+    load_aoi_table,
+    load_geotiff,
+    load_quality_json,
+    load_zarr_cube,
+    scene_path,
+)
+from utils.map_builder import add_raster_overlay, build_parcel_map, make_colorbar
+
+st.set_page_config(page_title="Explorer", page_icon="🗺️", layout="wide")
+st.title("Explorador de datos")
+
+# ------------------------------------------------------------------
+# Load AOI table (for geometry overlays)
+# ------------------------------------------------------------------
+try:
+    aoi_df = load_aoi_table()
+    aoi_lookup = dict(zip(aoi_df["parcel_id"], aoi_df["geom"]))
+except FileNotFoundError:
+    aoi_df = None
+    aoi_lookup = {}
+
+# ------------------------------------------------------------------
+# Sidebar controls
+# ------------------------------------------------------------------
+with st.sidebar:
+    st.header("Controles")
+
+    # 1. Sensor filter
+    sensor_key = st.radio("Sensor", ["S2", "S1"], horizontal=True)
+
+    # 2. Parcel selector
+    parcels = list_parcels_with_data(sensor_key)
+    if not parcels:
+        st.warning("No hay datos descargados para este sensor.")
+        st.stop()
+
+    parcel_id = st.selectbox("Parcela", parcels)
+
+    # 3. Scene selector
+    scenes = list_scenes(sensor_key, parcel_id)
+    if not scenes:
+        st.warning("No hay escenas para esta parcela.")
+        st.stop()
+
+    scene_name = st.selectbox("Escena", scenes)
+    s_path = scene_path(sensor_key, parcel_id, scene_name)
+
+    # 4. Band selector
+    available_bands = list_bands(s_path)
+    if not available_bands:
+        st.warning("No se encontraron bandas en esta escena.")
+        st.stop()
+
+    band = st.selectbox("Banda / variable", available_bands)
+
+# ------------------------------------------------------------------
+# Tabs
+# ------------------------------------------------------------------
+tab_map, tab_ts, tab_analysis = st.tabs(
+    ["Mapa", "Serie temporal", "Análisis de bandas"]
+)
+
+# ==================================================================
+# Tab 1: Map View
+# ==================================================================
+with tab_map:
+    st.subheader(f"{band} — {scene_name[:40]}…")
+
+    try:
+        data, profile = load_geotiff(s_path, band)
+    except FileNotFoundError as exc:
+        st.error(str(exc))
+        st.stop()
+
+    # Choose colormap based on band
+    cmap = "RdYlGn" if band == "NDVI" else "viridis"
+
+    # Build map with parcel outline + raster overlay
+    if parcel_id != "(single)" and parcel_id in aoi_lookup:
+        geom = aoi_lookup[parcel_id]
+        m = build_parcel_map([geom], [parcel_id], selected_ids=[parcel_id])
+    else:
+        import folium
+
+        from utils.data_loader import geotiff_bounds_4326
+
+        bounds = geotiff_bounds_4326(profile)
+        center = [
+            (bounds[0][0] + bounds[1][0]) / 2,
+            (bounds[0][1] + bounds[1][1]) / 2,
+        ]
+        m = folium.Map(location=center, zoom_start=15)
+
+    m = add_raster_overlay(m, data, profile, cmap=cmap, name=band)
+    st_folium(m, height=500, use_container_width=True, returned_objects=[])
+
+    # Colorbar
+    valid = data[~np.isnan(data)]
+    if valid.size > 0:
+        fig = make_colorbar(
+            cmap=cmap,
+            vmin=float(np.percentile(valid, 2)),
+            vmax=float(np.percentile(valid, 98)),
+            label=band,
+        )
+        st.pyplot(fig, use_container_width=False)
+
+# ==================================================================
+# Tab 2: Time Series
+# ==================================================================
+with tab_ts:
+    zarr_path = find_zarr_store(sensor_key, parcel_id)
+
+    if zarr_path is None:
+        st.info("No hay cubo Zarr disponible para esta parcela.")
+    else:
+        try:
+            ds = load_zarr_cube(zarr_path)
+        except Exception as exc:
+            st.error(f"Error al abrir el cubo Zarr: {exc}")
+            ds = None
+
+        if ds is not None:
+            st.subheader("Cubo espacio-temporal")
+
+            # Detect time and variable dims
+            if "time" in ds.dims:
+                times = pd.to_datetime(ds["time"].values)
+                st.write(f"**{len(times)} fechas** disponibles.")
+
+                if len(times) > 1:
+                    t_idx = st.slider(
+                        "Fecha",
+                        min_value=0,
+                        max_value=len(times) - 1,
+                        value=0,
+                        format="t=%d",
+                    )
+                    st.caption(f"Fecha seleccionada: {times[t_idx].date()}")
+                else:
+                    t_idx = 0
+
+                # Try to find a plottable data variable
+                data_vars = [v for v in ds.data_vars if "time" in ds[v].dims]
+                if data_vars:
+                    var_name = data_vars[0]
+                    ts_data = ds[var_name]
+
+                    # Line chart: mean over spatial dims per time step
+                    spatial_dims = [d for d in ts_data.dims if d != "time"]
+                    mean_ts = ts_data.mean(dim=spatial_dims).values
+
+                    chart_df = pd.DataFrame(
+                        {"fecha": times, var_name: mean_ts}
+                    ).set_index("fecha")
+                    st.line_chart(chart_df, y=var_name)
+
+                    # Stats table
+                    stats_rows = []
+                    for i, t in enumerate(times):
+                        arr = ts_data.isel(time=i).values.astype(float)
+                        valid_arr = arr[~np.isnan(arr)]
+                        if valid_arr.size > 0:
+                            stats_rows.append(
+                                {
+                                    "fecha": t.date(),
+                                    "min": float(np.min(valid_arr)),
+                                    "max": float(np.max(valid_arr)),
+                                    "mean": float(np.mean(valid_arr)),
+                                    "std": float(np.std(valid_arr)),
+                                }
+                            )
+                    if stats_rows:
+                        st.dataframe(pd.DataFrame(stats_rows), use_container_width=True)
+                else:
+                    st.info("No se encontraron variables con dimensión temporal.")
+            else:
+                st.info("El cubo Zarr no tiene dimensión temporal.")
+
+# ==================================================================
+# Tab 3: Band Analysis
+# ==================================================================
+with tab_analysis:
+    import matplotlib.pyplot as plt
+
+    st.subheader(f"Análisis — {band}")
+
+    try:
+        data, profile = load_geotiff(s_path, band)
+    except FileNotFoundError:
+        st.error(f"No se encontró GeoTIFF para {band}.")
+        st.stop()
+
+    valid = data[~np.isnan(data)]
+
+    # --- Histogram ---
+    if valid.size > 0:
+        fig, ax = plt.subplots(figsize=(8, 3))
+        ax.hist(valid.ravel(), bins=100, color="#3b82f6", edgecolor="none", alpha=0.8)
+        ax.set_xlabel("Valor de píxel")
+        ax.set_ylabel("Frecuencia")
+        ax.set_title(f"Histograma — {band}")
+        fig.tight_layout()
+        st.pyplot(fig)
+    else:
+        st.warning("Todos los píxeles son NoData.")
+
+    # --- Side-by-side band comparison ---
+    other_bands = [b for b in available_bands if b != band]
+    if other_bands:
+        compare_band = st.selectbox("Comparar con", other_bands, key="compare_band")
+        try:
+            data2, profile2 = load_geotiff(s_path, compare_band)
+            valid2 = data2[~np.isnan(data2)]
+
+            col1, col2 = st.columns(2)
+            with col1:
+                st.caption(band)
+                fig1, ax1 = plt.subplots(figsize=(4, 4))
+                cmap1 = "RdYlGn" if band == "NDVI" else "viridis"
+                ax1.imshow(data, cmap=cmap1, aspect="equal")
+                ax1.set_title(band)
+                ax1.axis("off")
+                fig1.tight_layout()
+                st.pyplot(fig1)
+
+            with col2:
+                st.caption(compare_band)
+                fig2, ax2 = plt.subplots(figsize=(4, 4))
+                cmap2 = "RdYlGn" if compare_band == "NDVI" else "viridis"
+                ax2.imshow(data2, cmap=cmap2, aspect="equal")
+                ax2.set_title(compare_band)
+                ax2.axis("off")
+                fig2.tight_layout()
+                st.pyplot(fig2)
+        except FileNotFoundError:
+            st.warning(f"No se encontró GeoTIFF para {compare_band}.")
+
+    # --- Quality info ---
+    st.subheader("Calidad de la escena")
+    quality = load_quality_json(s_path)
+    if quality:
+        stac = quality.get("stac_subset", {})
+        metrics = {
+            "Cobertura nubosa (%)": stac.get("eo:cloud_cover"),
+            "Vegetación (%)": stac.get("s2:vegetation_percentage"),
+            "Agua (%)": stac.get("s2:water_percentage"),
+            "NoData (%)": stac.get("s2:nodata_pixel_percentage"),
+            "Sombra de nubes (%)": stac.get("s2:cloud_shadow_percentage"),
+        }
+        metrics_clean = {k: v for k, v in metrics.items() if v is not None}
+        if metrics_clean:
+            st.dataframe(
+                pd.DataFrame(metrics_clean, index=["Valor"]).T,
+                use_container_width=True,
+            )
+
+        # Scene metadata
+        st.subheader("Metadatos de la escena")
+        meta_items = {
+            "Scene ID": quality.get("scene_id"),
+            "Collection": quality.get("collection"),
+            "MGRS Tile": quality.get("mgrs_tile"),
+            "Acquisition start": quality.get("acquisition_start"),
+            "Acquisition end": quality.get("acquisition_end"),
+            "Native EPSG": quality.get("native_epsg"),
+        }
+        meta_clean = {k: v for k, v in meta_items.items() if v is not None}
+        if meta_clean:
+            st.json(meta_clean)
+    else:
+        st.info("No se encontró archivo de calidad para esta escena.")
