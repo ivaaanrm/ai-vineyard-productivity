@@ -21,6 +21,10 @@ def build_params(
     bands_s2: list[str] | None = None,
     cloud_cover: int = 20,
     pols_s1: list[str] | None = None,
+    products_s3: list[str] | None = None,
+    products_modis: list[str] | None = None,
+    era5_variable: str | None = None,
+    era5_daily_agg: str | None = None,
     buffer_m: int = 100,
     target_res_m: int | None = None,
     max_items: int | None = None,
@@ -65,6 +69,14 @@ def build_params(
         params["save_ndvi"] = "NDVI" in (bands_s2 or ["NDVI"])
     elif sensor == "S1":
         params["select_products_s1"] = pols_s1 or ["VV", "VH"]
+    elif sensor == "S3":
+        params["select_products_s3"] = products_s3 or ["lst-in"]
+    elif sensor == "MODIS":
+        params["select_products_modis"] = products_modis or ["ET_500m", "PET_500m"]
+    elif sensor == "ERA5":
+        params["variable"] = era5_variable or "tp"
+        params["daily_agg"] = era5_daily_agg or "sum"
+        params["data_format"] = "netcdf"
 
     return params
 

@@ -25,10 +25,23 @@ OUTPUT_FILES = _DOCKER_ROOT / "data" / "output" / "files"
 SENSOR_FOLDERS = {
     "S1": "SENTINEL-1",
     "S2": "SENTINEL-2",
+    "S3": "SENTINEL-3",
+    "ERA5": "ERA5",
+    "MODIS": "MODIS",
 }
 
 S2_BANDS = ["B02", "B03", "B04", "B08", "B11", "B12", "NDVI"]
 S1_POLARIZATIONS = ["VV", "VH"]
+S3_PRODUCTS = ["lst-in"]
+MODIS_PRODUCTS = ["ET_500m", "PET_500m", "LE_500m", "PLE_500m", "ET_QC_500m"]
+ERA5_VARIABLES = {
+    "tp": "Precipitación total",
+    "t2m": "Temperatura a 2 m",
+    "d2m": "Punto de rocío a 2 m",
+    "u10": "Viento U a 10 m",
+    "v10": "Viento V a 10 m",
+}
+ERA5_AGGREGATIONS = ["sum", "mean", "min", "max"]
 
 
 # ---------------------------------------------------------------------------
@@ -126,15 +139,42 @@ def scene_path(sensor_key: str, parcel_id: str, scene_name: str) -> Path:
 # ---------------------------------------------------------------------------
 
 
+def _extract_band_name(stem: str) -> str:
+    """Extract band/product name from a filename stem.
+
+    Handles different naming conventions:
+    - S1/S2: B04_S2A_MSIL2A... → B04, NDVI_S2A_... → NDVI
+    - MODIS: ET_500m_granule_... → ET_500m, ET_QC_500m_granule_... → ET_QC_500m
+    - S3: lst-in_S3A_... → lst-in
+    - ERA5: tp_ERA5L_... → tp
+
+    Strategy: split on known scene-id prefixes (S1A_, S2A_, S2B_, S3A_, S3B_,
+    granule_, ERA5L_, __tmp_).
+    """
+    import re
+
+    m = re.split(r"_(S[123][AB]_|granule_|ERA5L_|__tmp_)", stem, maxsplit=1)
+    return m[0]
+
+
 def list_bands(scene_dir: Path) -> list[str]:
-    """Return band/variable names available in a scene directory."""
+    """Return band/variable names available in a scene directory.
+
+    Supports GeoTIFF (.tif) for S1/S2/MODIS and NetCDF (.nc) for S3/ERA5.
+    Adds a virtual "RGB" band when B02, B03, and B04 are all present.
+    """
     bands = []
     for f in sorted(scene_dir.glob("*.tif")):
-        # Band name is the prefix before the first underscore that starts
-        # a scene ID (e.g.  B04_S2A_MSIL2A... or NDVI_S2A_MSIL2A...)
-        name = f.stem.split("_")[0]
+        name = _extract_band_name(f.stem)
         if name not in bands:
             bands.append(name)
+    for f in sorted(scene_dir.glob("*.nc")):
+        name = _extract_band_name(f.stem)
+        if name not in bands:
+            bands.append(name)
+    # Add virtual RGB composite when all three visible bands are available
+    if all(b in bands for b in ("B02", "B03", "B04")):
+        bands.insert(0, "RGB")
     return bands
 
 
@@ -151,6 +191,100 @@ def load_geotiff(scene_dir: Path, band: str) -> tuple[np.ndarray, dict]:
         profile = dict(src.profile)
         profile["bounds"] = src.bounds
     return data, profile
+
+
+def load_netcdf(scene_dir: Path, band: str) -> tuple[np.ndarray, dict]:
+    """Load the first matching NetCDF for *band* and return (array, profile).
+
+    Returns a synthetic profile dict compatible with the GeoTIFF profile
+    so map overlay code works uniformly.
+    """
+    matches = sorted(scene_dir.glob(f"{band}_*.nc"))
+    if not matches:
+        raise FileNotFoundError(f"No NetCDF for band {band!r} in {scene_dir}")
+    ds = xr.open_dataset(matches[0])
+    # Find the primary data variable (skip coordinate vars)
+    data_vars = [v for v in ds.data_vars if v not in ("x", "y", "lat", "lon", "spatial_ref")]
+    if not data_vars:
+        raise FileNotFoundError(f"No data variables found in {matches[0]}")
+    var_name = data_vars[0]
+    arr = ds[var_name].values
+    # If 3D (time, y, x), take first time step
+    if arr.ndim == 3:
+        arr = arr[0]
+    arr = arr.astype(np.float32)
+
+    # Build a synthetic profile for map overlay
+    # Detect coordinate names (x/y or lon/lat)
+    if "x" in ds.coords and "y" in ds.coords:
+        x_vals = ds["x"].values
+        y_vals = ds["y"].values
+    elif "lon" in ds.coords and "lat" in ds.coords:
+        x_vals = ds["lon"].values
+        y_vals = ds["lat"].values
+    else:
+        x_vals = y_vals = None
+
+    if x_vals is not None and y_vals is not None:
+        from rasterio.crs import CRS
+        from rasterio.transform import from_bounds
+
+        res_x = float(x_vals[1] - x_vals[0]) if len(x_vals) > 1 else 0.0001
+        res_y = float(y_vals[1] - y_vals[0]) if len(y_vals) > 1 else -0.0001
+        west = float(x_vals.min()) - abs(res_x) / 2
+        east = float(x_vals.max()) + abs(res_x) / 2
+        south = float(y_vals.min()) - abs(res_y) / 2
+        north = float(y_vals.max()) + abs(res_y) / 2
+        t = from_bounds(west, south, east, north, arr.shape[1], arr.shape[0])
+        profile = {
+            "crs": CRS.from_epsg(4326),
+            "transform": t,
+            "height": arr.shape[0],
+            "width": arr.shape[1],
+            "bounds": rasterio.coords.BoundingBox(west, south, east, north),
+        }
+    else:
+        profile = {"height": arr.shape[0], "width": arr.shape[1]}
+    ds.close()
+    return arr, profile
+
+
+def load_raster(scene_dir: Path, band: str) -> tuple[np.ndarray, dict]:
+    """Load a raster (GeoTIFF or NetCDF) for the given band.
+
+    Tries GeoTIFF first, falls back to NetCDF.
+    """
+    tif_matches = sorted(scene_dir.glob(f"{band}_*.tif"))
+    if tif_matches:
+        return load_geotiff(scene_dir, band)
+    return load_netcdf(scene_dir, band)
+
+
+def load_rgb_composite(scene_dir: Path) -> tuple[np.ndarray, dict]:
+    """Load B04, B03, B02 and stack them into an (H, W, 3) uint8 RGB array.
+
+    Returns (rgb_array, profile) where profile comes from B04.
+    """
+    r, profile = load_geotiff(scene_dir, "B04")
+    g, _ = load_geotiff(scene_dir, "B03")
+    b, _ = load_geotiff(scene_dir, "B02")
+
+    rgb = np.stack([r, g, b], axis=-1)
+    # Mask nodata (any band NaN → transparent)
+    nodata_mask = np.isnan(r) | np.isnan(g) | np.isnan(b)
+    # Clip to 2nd–98th percentile for contrast stretch
+    valid = rgb[~nodata_mask]
+    if valid.size > 0:
+        vmin = float(np.percentile(valid, 2))
+        vmax = float(np.percentile(valid, 98))
+        if vmax > vmin:
+            rgb = (rgb - vmin) / (vmax - vmin)
+        else:
+            rgb = np.zeros_like(rgb)
+    rgb = np.clip(rgb, 0, 1)
+    # Set nodata pixels to NaN for downstream transparency handling
+    rgb[nodata_mask] = np.nan
+    return rgb, profile
 
 
 def geotiff_bounds_4326(profile: dict) -> list[list[float]]:
