@@ -94,7 +94,7 @@ def list_parcels_with_data(sensor_key: str) -> list[str]:
     parcel_dirs = [
         d.name
         for d in sorted(sensor_dir.iterdir())
-        if d.is_dir() and d.name.startswith("L")
+        if d.is_dir()
     ]
     if parcel_dirs:
         return parcel_dirs
