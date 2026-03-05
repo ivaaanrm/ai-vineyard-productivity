@@ -27,4 +27,6 @@ dependencies = [
     "pydantic>=2.12.5",
     "pydantic-settings>=2.13.1",
     "nbformat>=5.10.4",
+    "nbconvert>=7.17.0",
+    "nbclient>=0.10.4",
 ]
