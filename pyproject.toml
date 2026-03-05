@@ -26,4 +26,5 @@ dependencies = [
     "python-dotenv>=1.2.2",
     "pydantic>=2.12.5",
     "pydantic-settings>=2.13.1",
+    "nbformat>=5.10.4",
 ]
