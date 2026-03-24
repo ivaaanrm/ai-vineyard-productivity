@@ -78,7 +78,7 @@ class ParcelStatsExtractor:
 
         for t_idx, t in enumerate(cube.times):
             row: Dict[str, Any] = {
-                "time": pd.Timestamp(t),
+                "time": pd.Timestamp(t).date(),
                 "parcel_key": cube.parcel_key,
                 "sensor": cube.sensor,
             }

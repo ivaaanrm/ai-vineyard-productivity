@@ -7,7 +7,7 @@ from shapely import wkt
 from shapely.geometry import box
 
 # Margin in meters (EPSG:3857 units) added on each side of the bounding box
-MARGIN = 750
+MARGIN = 1500
 
 # WKT geometry in EPSG:3857 (Web Mercator)
 wkt_str = (

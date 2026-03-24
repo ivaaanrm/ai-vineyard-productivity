@@ -7,6 +7,7 @@
 #   compute_indices: indices to compute and append to the cube
 #                    available S2: NDVI, EVI, SAVI, NBR2, NDWI
 #                    available S1: RVI, VH_VV
+#                    available S3: LST_C
 #   output_bands:    bands/indices to include in the tabular output
 #                    (subset of native bands + compute_indices)
 
@@ -44,3 +45,10 @@ sensors:
       # - RVI
       - VH_VV
       - DpRVI
+
+  SENTINEL-3:
+    compute_indices:
+      - LST_C
+    output_bands:
+      - LST
+      - LST_C

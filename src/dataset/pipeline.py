@@ -8,7 +8,7 @@ from typing import Dict, List
 import pandas as pd
 
 from .config import DatasetConfig
-from .sensors import S1_CALCULATORS, S2_CALCULATORS, IndexCalculator, lee_filter, to_db
+from .sensors import S1_CALCULATORS, S2_CALCULATORS, S3_CALCULATORS, IndexCalculator, lee_filter, to_db
 from .loader import SampleCube, SampleLoaderProtocol, ZarrBandLoader
 from .stats import ParcelStatsExtractor
 
@@ -16,6 +16,7 @@ from .stats import ParcelStatsExtractor
 _SENSOR_CALCULATORS: Dict[str, List[IndexCalculator]] = {
     "SENTINEL-2": S2_CALCULATORS,
     "SENTINEL-1": S1_CALCULATORS,
+    "SENTINEL-3": S3_CALCULATORS,
 }
 
 

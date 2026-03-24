@@ -22,11 +22,12 @@ class SampleCube:
         self._ds = ds
         self.sensor = sensor
         self.parcel_key = parcel_key
-        # Decode byte-string variable coords to plain strings
+        # Build name→raw_key mapping (handles both bytes and str coords)
         raw = ds.coords["variable"].values
-        self._variables: List[str] = [
-            v.decode() if isinstance(v, bytes) else str(v) for v in raw
-        ]
+        self._var_keys: dict[str, object] = {}
+        for v in raw:
+            name = v.decode() if isinstance(v, bytes) else str(v)
+            self._var_keys[name] = v
     
     @property
     def ds(self):
@@ -34,24 +35,26 @@ class SampleCube:
 
     @property
     def variables(self) -> List[str]:
-        return self._variables
+        return list(self._var_keys)
 
     @property
     def times(self) -> np.ndarray:
         return self._ds.coords["time"].values
 
+    def _raw_key(self, name: str) -> object:
+        """Return the raw coordinate value for a band name."""
+        return self._var_keys[name]
+
     def band(self, name: str) -> xr.DataArray:
         """Return (time, y, x) DataArray for a named band."""
-        # zarr stores variable names as bytes
-        key = name.encode() if name in self._variables else name
-        return self._ds["data"].sel(variable=key)
+        return self._ds["data"].sel(variable=self._raw_key(name))
 
     def has_band(self, name: str) -> bool:
-        return name in self._variables
+        return name in self._var_keys
 
     def replace_band(self, name: str, new_da: xr.DataArray) -> None:
         """Replace an existing band's data (loads lazy data into memory)."""
-        key = name.encode() if name in self._variables else name
+        key = self._raw_key(name)
         var_list = list(self._ds.coords["variable"].values)
         idx = var_list.index(key)
         data = np.array(self._ds["data"].values)  # (time, variable, y, x)
@@ -67,28 +70,32 @@ class SampleCube:
         Skips calculators whose required bands are missing or whose output
         name already exists as a variable. Mutates the cube in place.
         """
+        # Use same type as existing variable coords (bytes or str)
+        first_raw = next(iter(self._var_keys.values()), None)
+        use_bytes = isinstance(first_raw, bytes)
+
         for calc in calculators:
-            if calc.name in self._variables:
+            if calc.name in self._var_keys:
                 continue
             if not calc.supports(self):
                 continue
             da = calc.compute(self)  # (time, y, x)
+            raw_key = calc.name.encode() if use_bytes else calc.name
             new_slice = xr.DataArray(
                 da.values[:, np.newaxis, :, :],
                 dims=["time", "variable", "y", "x"],
                 coords={
                     "time": self._ds.coords["time"],
-                    "variable": [calc.name.encode()],
+                    "variable": [raw_key],
                     "y": self._ds.coords["y"],
                     "x": self._ds.coords["x"],
                 },
             )
             new_data = xr.concat([self._ds["data"], new_slice], dim="variable")
-            self._variables.append(calc.name)
-            # Rebuild dataset and keep attrs in sync with the updated variable List
+            self._var_keys[calc.name] = raw_key
             self._ds = xr.Dataset(
                 {"data": new_data},
-                attrs={**self._ds.attrs, "variables": list(self._variables)},
+                attrs={**self._ds.attrs, "variables": list(self._var_keys)},
             )
 
     def __str__(self) -> str:

@@ -20,6 +20,7 @@ pipeline = make_pipeline_from_config(BASE, CONFIG)
 
 cube_s2 = pipeline.load(PARCEL, "SENTINEL-2")
 cube_s1 = pipeline.load(PARCEL, "SENTINEL-1")
+cube_s3 = pipeline.load(PARCEL, "SENTINEL-3")
 
 # Print the underlying xarray Dataset (shows all variables including computed ones)
 print("=== SENTINEL-2 cube ===")
@@ -27,6 +28,9 @@ print(cube_s2)
 
 print("\n=== SENTINEL-1 cube ===")
 print(cube_s1)
+
+print("\n=== SENTINEL-3 cube ===")
+print(cube_s3)
 
 # ---------------------------------------------------------------------------
 # 2. Tabular stats — one row per timestamp, one column per band/index/stat
@@ -59,3 +63,11 @@ plot_snapshot(
     extra_bands=["VV", "RVI", "VH_VV", "DpRVI"],
     save_path=IMAGES / "output_s1_snapshot.png",
 )
+
+# # Sentinel-3: LST native band + LST_C (Celsius) as extra
+# plot_snapshot(
+#     cube_s3,
+#     time="2021-10-01",
+#     extra_bands=["LST_C"],
+#     save_path=IMAGES / "output_s3_snapshot.png",
+# )
