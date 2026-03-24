@@ -1,5 +1,3 @@
-"""Band cube loader — Protocol definition and Zarr adapter."""
-
 from __future__ import annotations
 
 from pathlib import Path

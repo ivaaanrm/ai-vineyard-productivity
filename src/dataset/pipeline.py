@@ -1,15 +1,12 @@
-"""End-to-end pipeline: load → compute indices → reduce to tabular data."""
-
 from __future__ import annotations
 
-import json
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Dict, List
 
-import numpy as np
 import pandas as pd
 
 from .config import DatasetConfig
+from .loader import SampleLoaderProtocol, ZarrBandLoader
 from .sensors import (
     S1_CALCULATORS,
     S2_CALCULATORS,
@@ -17,7 +14,6 @@ from .sensors import (
     SENSOR_PREPROCESSORS,
     IndexCalculator,
 )
-from .loader import SampleLoaderProtocol, ZarrBandLoader
 from .stats import ParcelStatsExtractor
 
 # Default calculators per sensor (used when no config is provided)

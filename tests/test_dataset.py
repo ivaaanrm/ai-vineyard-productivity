@@ -55,7 +55,7 @@ export(df, output_dir=ROOT / "data/datasets/processed", name="test_train")
 plot_snapshot(
     cube_s2,
     time="2021-07-29",
-    extra_bands=["EVI", "NDWI"],
+    extra_bands=["EVI"],
     save_path=IMAGES / "output_s2_snapshot.png",
 )
 
@@ -63,7 +63,7 @@ plot_snapshot(
 plot_snapshot(
     cube_s1,
     time="2021-07-26",
-    extra_bands=["VV", "RVI", "VH_VV", "DpRVI"],
+    extra_bands=["VV", "VH", "VH_VV"],
     save_path=IMAGES / "output_s1_snapshot.png",
 )
 
