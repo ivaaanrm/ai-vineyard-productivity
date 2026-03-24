@@ -120,6 +120,45 @@ def add_raster_overlay(
     return m
 
 
+def add_rgb_overlay(
+    m: folium.Map,
+    rgb: np.ndarray,
+    profile: dict,
+    *,
+    name: str = "RGB",
+    opacity: float = 0.9,
+) -> folium.Map:
+    """Add an (H, W, 3) float RGB array as an ImageOverlay to the Folium map."""
+    bounds = geotiff_bounds_4326(profile)
+
+    # Build RGBA uint8: NaN pixels become transparent
+    nodata_mask = np.isnan(rgb[:, :, 0])
+    rgba = np.zeros((*rgb.shape[:2], 4), dtype=np.uint8)
+    rgb_clean = np.nan_to_num(rgb, nan=0.0)
+    rgba[:, :, :3] = (np.clip(rgb_clean, 0, 1) * 255).astype(np.uint8)
+    rgba[:, :, 3] = np.where(nodata_mask, 0, 255)
+
+    buf = io.BytesIO()
+    plt.imsave(buf, rgba, format="png")
+    buf.seek(0)
+
+    import base64
+
+    img_b64 = base64.b64encode(buf.read()).decode()
+    img_url = f"data:image/png;base64,{img_b64}"
+
+    folium.raster_layers.ImageOverlay(
+        image=img_url,
+        bounds=bounds,
+        name=name,
+        opacity=opacity,
+        interactive=False,
+    ).add_to(m)
+
+    folium.LayerControl().add_to(m)
+    return m
+
+
 def make_colorbar(
     cmap: str = "viridis",
     vmin: float = 0.0,

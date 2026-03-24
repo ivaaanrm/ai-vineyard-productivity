@@ -5,11 +5,31 @@ from __future__ import annotations
 import json
 import subprocess
 import tempfile
+from datetime import date, timedelta
 from pathlib import Path
 
 _DOCKER_ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = _DOCKER_ROOT / "data"
 IMAGE_NAME = "agrixel-fair"
+
+
+def split_date_range(start: date, end: date, n: int) -> list[tuple[date, date]]:
+    """Divide [start, end] into n equal sub-windows with no gaps or overlaps.
+
+    The last window absorbs any remainder days.
+    Returns a list of (window_start, window_end) tuples.
+    """
+    total_days = (end - start).days + 1
+    window_size = total_days // n
+    windows = []
+    for i in range(n):
+        win_start = start + timedelta(days=i * window_size)
+        if i == n - 1:
+            win_end = end
+        else:
+            win_end = start + timedelta(days=(i + 1) * window_size - 1)
+        windows.append((win_start, win_end))
+    return windows
 
 
 def build_params(
@@ -21,6 +41,10 @@ def build_params(
     bands_s2: list[str] | None = None,
     cloud_cover: int = 20,
     pols_s1: list[str] | None = None,
+    products_s3: list[str] | None = None,
+    products_modis: list[str] | None = None,
+    era5_variable: str | None = None,
+    era5_daily_agg: str | None = None,
     buffer_m: int = 100,
     target_res_m: int | None = None,
     max_items: int | None = None,
@@ -65,6 +89,14 @@ def build_params(
         params["save_ndvi"] = "NDVI" in (bands_s2 or ["NDVI"])
     elif sensor == "S1":
         params["select_products_s1"] = pols_s1 or ["VV", "VH"]
+    elif sensor == "S3":
+        params["select_products_s3"] = products_s3 or ["lst-in"]
+    elif sensor == "MODIS":
+        params["select_products_modis"] = products_modis or ["ET_500m", "PET_500m"]
+    elif sensor == "ERA5":
+        params["variable"] = era5_variable or "tp"
+        params["daily_agg"] = era5_daily_agg or "sum"
+        params["data_format"] = "netcdf"
 
     return params
 
