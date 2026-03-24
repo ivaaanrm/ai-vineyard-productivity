@@ -8,10 +8,10 @@ from typing import Dict, List
 import yaml
 from pydantic import BaseModel, model_validator
 
-from .indices import ALL_CALCULATORS, _BaseIndex
+from .indices import ALL_CALCULATORS, IndexCalculator
 
 # Registry: name → calculator instance
-_CALCULATOR_REGISTRY: Dict[str, _BaseIndex] = {c.name: c for c in ALL_CALCULATORS}
+_CALCULATOR_REGISTRY: Dict[str, IndexCalculator] = {c.name: c for c in ALL_CALCULATORS}
 
 
 class SensorConfig(BaseModel):
@@ -36,7 +36,7 @@ class DatasetConfig(BaseModel):
             raw = yaml.safe_load(f)
         return cls.model_validate(raw)
 
-    def calculators_for(self, sensor: str) -> List[_BaseIndex]:
+    def calculators_for(self, sensor: str) -> List[IndexCalculator]:
         """Return calculator instances for a sensor based on compute_indices."""
         names = self.sensors.get(sensor, SensorConfig(compute_indices=[], output_bands=[])).compute_indices
         return [_CALCULATOR_REGISTRY[n] for n in names if n in _CALCULATOR_REGISTRY]

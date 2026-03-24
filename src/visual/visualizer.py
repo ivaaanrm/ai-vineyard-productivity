@@ -7,17 +7,17 @@ from __future__ import annotations
 
 import math
 from pathlib import Path
+from typing import Dict, List
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from src.dataset.indices import ALL_CALCULATORS, NDVICalculator, _BaseIndex
+from src.dataset.indices import ALL_CALCULATORS, IndexCalculator, NDVI
 from src.dataset.loader import SampleCube
 from src.visual.panels import ALL_COMPOSITE_PANELS, _RawBandPanel
 
-# Name → calculator lookup used to resolve extra_bands by name
-_CALCULATOR_REGISTRY: dict[str, _BaseIndex] = {c.name: c for c in ALL_CALCULATORS}
+_CALCULATOR_REGISTRY: Dict[str, IndexCalculator] = {c.name: c for c in ALL_CALCULATORS}
 
 
 def _select_time(cube: SampleCube, time: int | str | pd.Timestamp) -> int:
@@ -32,7 +32,7 @@ def _select_time(cube: SampleCube, time: int | str | pd.Timestamp) -> int:
 def plot_snapshot(
     cube: SampleCube,
     time: int | str | pd.Timestamp = 0,
-    extra_bands: list[str] | None = None,
+    extra_bands: List[str] | None = None,
     save_path: Path | str | None = None,
     figsize_per_panel: tuple[float, float] = (4.5, 4.0),
 ) -> plt.Figure:
@@ -65,7 +65,7 @@ def plot_snapshot(
             panels.append(composite)
 
     # 2. NDVI — default index panel
-    ndvi = NDVICalculator()
+    ndvi = NDVI()
     if ndvi.supports(cube):
         panels.append(ndvi)
 

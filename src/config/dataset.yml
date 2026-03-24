@@ -22,13 +22,13 @@ sensors:
       - EVI
       - SAVI
       # - NBR2
-      - NDWI
+      # - NDWI
     output_bands:
       - NDVI
       - EVI
       - SAVI
       # - NBR2
-      - NDWI
+      # - NDWI
       # - B04   # Red
       # - B08   # NIR
       # - B11   # SWIR1

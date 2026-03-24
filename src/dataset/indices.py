@@ -1,4 +1,4 @@
-"""Spectral index calculators following the IndexCalculator protocol.
+"""Spectral index calculators.
 
 Sentinel-2 indices: NDVI, EVI, SAVI, NBR2, NDWI
 Sentinel-1 indices: RVI, VH_VV
@@ -6,8 +6,9 @@ Sentinel-1 indices: RVI, VH_VV
 
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import List, Protocol, runtime_checkable
+from typing import List
 
 import numpy as np
 import xarray as xr
@@ -24,23 +25,12 @@ class PlotStyle:
     vmax: float | None = None
 
 
-@runtime_checkable
-class IndexCalculator(Protocol):
-    """Protocol for spectral index computation and visualisation."""
+class IndexCalculator(ABC):
+    """Abstract base for all spectral index calculators.
 
-    name: str
-    title: str
-    required_bands: List[str]
-    plot_style: PlotStyle
-    is_rgb: bool
-
-    def supports(self, cube: SampleCube) -> bool: ...
-    def compute(self, cube: SampleCube) -> xr.DataArray: ...
-    def render(self, cube: SampleCube, t_idx: int) -> np.ndarray: ...
-
-
-class _BaseIndex:
-    """Shared helpers for index calculators."""
+    Subclasses must implement `compute()`. Shared logic (supports, render)
+    is provided here. Visual configuration is declared via `plot_style`.
+    """
 
     is_rgb: bool = False
 
@@ -58,8 +48,11 @@ class _BaseIndex:
     def supports(self, cube: SampleCube) -> bool:
         return all(cube.has_band(b) for b in self.required_bands)
 
+    @abstractmethod
+    def compute(self, cube: SampleCube) -> xr.DataArray: ...
+
     def render(self, cube: SampleCube, t_idx: int) -> np.ndarray:
-        """Return a (y, x) array for this index at the given time index.
+        """Return a (y, x) array at the given time index.
 
         Uses the pre-computed native band if already present in the cube,
         otherwise computes on the fly.
@@ -74,7 +67,7 @@ class _BaseIndex:
 # ---------------------------------------------------------------------------
 
 
-class NDVICalculator(_BaseIndex):
+class NDVI(IndexCalculator):
     """Normalized Difference Vegetation Index = (NIR - Red) / (NIR + Red)."""
 
     def __init__(self) -> None:
@@ -91,7 +84,7 @@ class NDVICalculator(_BaseIndex):
         return ((nir - red) / denom).where(denom != 0)
 
 
-class EVICalculator(_BaseIndex):
+class EVI(IndexCalculator):
     """Enhanced Vegetation Index = 2.5 * (NIR-Red) / (NIR + 6*Red - 7.5*Blue + 1)."""
 
     def __init__(self) -> None:
@@ -109,7 +102,7 @@ class EVICalculator(_BaseIndex):
         return (2.5 * (nir - red) / denom).where(denom != 0)
 
 
-class SAVICalculator(_BaseIndex):
+class SAVI(IndexCalculator):
     """Soil Adjusted Vegetation Index = (1+L)*(NIR-Red)/(NIR+Red+L), L=0.5."""
 
     def __init__(self, L: float = 0.5) -> None:
@@ -127,7 +120,7 @@ class SAVICalculator(_BaseIndex):
         return ((1 + self.L) * (nir - red) / denom).where(denom != 0)
 
 
-class NBR2Calculator(_BaseIndex):
+class NBR2(IndexCalculator):
     """Normalized Burn Ratio 2 = (SWIR1 - SWIR2) / (SWIR1 + SWIR2)."""
 
     def __init__(self) -> None:
@@ -144,7 +137,7 @@ class NBR2Calculator(_BaseIndex):
         return ((swir1 - swir2) / denom).where(denom != 0)
 
 
-class NDWICalculator(_BaseIndex):
+class NDWI(IndexCalculator):
     """Normalized Difference Water Index = (Green - NIR) / (Green + NIR)."""
 
     def __init__(self) -> None:
@@ -166,7 +159,7 @@ class NDWICalculator(_BaseIndex):
 # ---------------------------------------------------------------------------
 
 
-class RVICalculator(_BaseIndex):
+class RVI(IndexCalculator):
     """Radar Vegetation Index = 4*VH / (VV + VH)."""
 
     def __init__(self) -> None:
@@ -183,7 +176,7 @@ class RVICalculator(_BaseIndex):
         return (4 * vh / denom).where(denom != 0)
 
 
-class VHVVRatioCalculator(_BaseIndex):
+class VHVVRatio(IndexCalculator):
     """VH/VV backscatter ratio — sensitive to canopy structure."""
 
     def __init__(self) -> None:
@@ -203,17 +196,17 @@ class VHVVRatioCalculator(_BaseIndex):
 # Registries
 # ---------------------------------------------------------------------------
 
-S2_CALCULATORS: List[_BaseIndex] = [
-    NDVICalculator(),
-    EVICalculator(),
-    SAVICalculator(),
-    NBR2Calculator(),
-    NDWICalculator(),
+S2_CALCULATORS: List[IndexCalculator] = [
+    NDVI(),
+    EVI(),
+    SAVI(),
+    NBR2(),
+    NDWI(),
 ]
 
-S1_CALCULATORS: List[_BaseIndex] = [
-    RVICalculator(),
-    VHVVRatioCalculator(),
+S1_CALCULATORS: List[IndexCalculator] = [
+    RVI(),
+    VHVVRatio(),
 ]
 
-ALL_CALCULATORS: List[_BaseIndex] = S2_CALCULATORS + S1_CALCULATORS
+ALL_CALCULATORS: List[IndexCalculator] = S2_CALCULATORS + S1_CALCULATORS

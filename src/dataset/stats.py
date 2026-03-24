@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from .indices import _BaseIndex
+from .indices import IndexCalculator
 from .loader import SampleCube
 
 # Supported spatial statistics
@@ -39,7 +39,7 @@ class ParcelStatsExtractor:
 
     def __init__(
         self,
-        calculators: List[_BaseIndex] | None = None,
+        calculators: List[IndexCalculator] | None = None,
         stats: List[str] | None = None,
         output_bands: List[str] | None = None,
         skip_existing: bool = True,

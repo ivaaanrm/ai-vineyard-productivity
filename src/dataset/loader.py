@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List, Protocol, runtime_checkable, TYPE_CHECKING
+from typing import TYPE_CHECKING, List, Protocol
 
 import numpy as np
 import xarray as xr
 
 if TYPE_CHECKING:
-    from .indices import _BaseIndex
+    from .indices import IndexCalculator
 
 class SampleCube:
     """Wraps a (time, variable, y, x) xarray Dataset for a parcel+sensor combination.
@@ -49,7 +49,7 @@ class SampleCube:
     def has_band(self, name: str) -> bool:
         return name in self._variables
 
-    def compute_indices(self, calculators: List[_BaseIndex]) -> None:
+    def compute_indices(self, calculators: List[IndexCalculator]) -> None:
         """Compute indices and append them as new variables in the dataset.
 
         Skips calculators whose required bands are missing or whose output
@@ -89,7 +89,6 @@ class SampleCube:
         )
 
 
-@runtime_checkable
 class SampleLoaderProtocol(Protocol):
     """Protocol for loading band cubes — implement this to plug in a new data source."""
 

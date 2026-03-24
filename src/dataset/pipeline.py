@@ -8,12 +8,12 @@ from typing import Dict, List
 import pandas as pd
 
 from .config import DatasetConfig
-from .indices import S1_CALCULATORS, S2_CALCULATORS, _BaseIndex
+from .indices import S1_CALCULATORS, S2_CALCULATORS, IndexCalculator
 from .loader import SampleLoaderProtocol, ZarrBandLoader
 from .stats import ParcelStatsExtractor
 
 # Default calculators per sensor (used when no config is provided)
-_SENSOR_CALCULATORS: Dict[str, List[_BaseIndex]] = {
+_SENSOR_CALCULATORS: Dict[str, List[IndexCalculator]] = {
     "SENTINEL-2": S2_CALCULATORS,
     "SENTINEL-1": S1_CALCULATORS,
 }
@@ -32,7 +32,7 @@ class DatasetPipeline:
         self,
         loader: SampleLoaderProtocol,
         stats: List[str] | None = None,
-        extra_calculators: List[_BaseIndex] | None = None,
+        extra_calculators: List[IndexCalculator] | None = None,
         config: DatasetConfig | None = None,
     ) -> None:
         self.loader = loader
@@ -40,7 +40,7 @@ class DatasetPipeline:
         self.stats = config.stats if config else (stats or ["mean", "std"])
         self.extra_calculators = extra_calculators or []
 
-    def _calculators_for(self, sensor: str) -> List[_BaseIndex]:
+    def _calculators_for(self, sensor: str) -> List[IndexCalculator]:
         if self.config:
             return self.config.calculators_for(sensor) + self.extra_calculators
         return _SENSOR_CALCULATORS.get(sensor, []) + self.extra_calculators
@@ -89,7 +89,7 @@ class DatasetPipeline:
 def make_pipeline(
     base_path: Path | str,
     stats: List[str] | None = None,
-    extra_calculators: List[_BaseIndex] | None = None,
+    extra_calculators: List[IndexCalculator] | None = None,
 ) -> DatasetPipeline:
     """Convenience factory: build a pipeline from an agrixel output base path."""
     return DatasetPipeline(
