@@ -32,7 +32,7 @@ except FileNotFoundError:
     st.stop()
 
 parcel_options = aoi_df["parcel_id"].tolist()
-municipio_map = dict(zip(aoi_df["parcel_id"], aoi_df["municipio"]))
+municipio_map = dict(zip(aoi_df["parcel_id"], aoi_df["municipality"]))
 
 # ------------------------------------------------------------------
 # 1. Sensor selector
