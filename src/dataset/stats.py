@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Callable
+from typing import Any, Callable, Dict, List
 
 import numpy as np
 import pandas as pd
@@ -12,7 +12,7 @@ from .indices import _BaseIndex
 from .loader import SampleCube
 
 # Supported spatial statistics
-STAT_FNS: dict[str, Callable[[np.ndarray], float]] = {
+STAT_FNS: Dict[str, Callable[[np.ndarray], float]] = {
     "mean": np.nanmean,
     "std": np.nanstd,
     "median": np.nanmedian,
@@ -23,7 +23,7 @@ STAT_FNS: dict[str, Callable[[np.ndarray], float]] = {
 }
 
 
-class SpectralReducer:
+class ParcelStatsExtractor:
     """Computes per-timestep spatial statistics for native bands and computed indices.
 
     For each time step, spatially aggregates every layer (native bands + computed
@@ -39,9 +39,9 @@ class SpectralReducer:
 
     def __init__(
         self,
-        calculators: list[_BaseIndex] | None = None,
-        stats: list[str] | None = None,
-        output_bands: list[str] | None = None,
+        calculators: List[_BaseIndex] | None = None,
+        stats: List[str] | None = None,
+        output_bands: List[str] | None = None,
         skip_existing: bool = True,
     ) -> None:
         self.calculators = calculators or []
@@ -51,15 +51,15 @@ class SpectralReducer:
 
         unknown = set(self.stats) - STAT_FNS.keys()
         if unknown:
-            raise ValueError(f"Unknown stats: {unknown}. Available: {list(STAT_FNS)}")
+            raise ValueError(f"Unknown stats: {unknown}. Available: {List(STAT_FNS)}")
 
-    def reduce(self, cube: SampleCube) -> pd.DataFrame:
+    def get_stats(self, cube: SampleCube) -> pd.DataFrame:
         """Return a DataFrame with one row per timestamp.
 
         Columns: time, parcel_key, sensor, then {layer}_{stat} for each
         layer/stat combination.
         """
-        layers: dict[str, xr.DataArray] = {}
+        layers: Dict[str, xr.DataArray] = {}
 
         for var in cube.variables:
             layers[var] = cube.band(var)
@@ -74,10 +74,10 @@ class SpectralReducer:
             layers = {k: v for k, v in layers.items() if k in self.output_bands}
 
         stat_fns = {s: STAT_FNS[s] for s in self.stats}
-        records: list[dict] = []
+        records: List[Dict[str, Any]] = []
 
         for t_idx, t in enumerate(cube.times):
-            row: dict = {
+            row: Dict[str, Any] = {
                 "time": pd.Timestamp(t),
                 "parcel_key": cube.parcel_key,
                 "sensor": cube.sensor,

@@ -6,32 +6,67 @@ Sentinel-1 indices: RVI, VH_VV
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import List, Protocol, runtime_checkable
 
+import numpy as np
 import xarray as xr
 
 from .loader import SampleCube
 
 
+@dataclass(frozen=True)
+class PlotStyle:
+    """Visual configuration for a single-band panel."""
+
+    cmap: str = "viridis"
+    vmin: float | None = None
+    vmax: float | None = None
+
+
 @runtime_checkable
 class IndexCalculator(Protocol):
-    """Protocol for spectral index computation."""
+    """Protocol for spectral index computation and visualisation."""
 
     name: str
-    required_bands: list[str]
+    title: str
+    required_bands: List[str]
+    plot_style: PlotStyle
+    is_rgb: bool
 
     def supports(self, cube: SampleCube) -> bool: ...
     def compute(self, cube: SampleCube) -> xr.DataArray: ...
+    def render(self, cube: SampleCube, t_idx: int) -> np.ndarray: ...
 
 
 class _BaseIndex:
     """Shared helpers for index calculators."""
 
-    name: str
-    required_bands: list[str]
+    is_rgb: bool = False
+
+    def __init__(
+        self,
+        name: str,
+        required_bands: List[str],
+        plot_style: PlotStyle = PlotStyle(),
+    ) -> None:
+        self.name = name
+        self.title = name
+        self.required_bands = required_bands
+        self.plot_style = plot_style
 
     def supports(self, cube: SampleCube) -> bool:
         return all(cube.has_band(b) for b in self.required_bands)
+
+    def render(self, cube: SampleCube, t_idx: int) -> np.ndarray:
+        """Return a (y, x) array for this index at the given time index.
+
+        Uses the pre-computed native band if already present in the cube,
+        otherwise computes on the fly.
+        """
+        if cube.has_band(self.name):
+            return cube.band(self.name).isel(time=t_idx).values
+        return self.compute(cube).isel(time=t_idx).values
 
 
 # ---------------------------------------------------------------------------
@@ -42,8 +77,12 @@ class _BaseIndex:
 class NDVICalculator(_BaseIndex):
     """Normalized Difference Vegetation Index = (NIR - Red) / (NIR + Red)."""
 
-    name = "NDVI"
-    required_bands = ["B08", "B04"]
+    def __init__(self) -> None:
+        super().__init__(
+            name="NDVI",
+            required_bands=["B08", "B04"],
+            plot_style=PlotStyle(cmap="RdYlGn", vmin=-1.0, vmax=1.0),
+        )
 
     def compute(self, cube: SampleCube) -> xr.DataArray:
         nir = cube.band("B08").astype("float32")
@@ -55,8 +94,12 @@ class NDVICalculator(_BaseIndex):
 class EVICalculator(_BaseIndex):
     """Enhanced Vegetation Index = 2.5 * (NIR-Red) / (NIR + 6*Red - 7.5*Blue + 1)."""
 
-    name = "EVI"
-    required_bands = ["B08", "B04", "B02"]
+    def __init__(self) -> None:
+        super().__init__(
+            name="EVI",
+            required_bands=["B08", "B04", "B02"],
+            plot_style=PlotStyle(cmap="RdYlGn", vmin=-1.0, vmax=1.0),
+        )
 
     def compute(self, cube: SampleCube) -> xr.DataArray:
         nir = cube.band("B08").astype("float32")
@@ -69,9 +112,13 @@ class EVICalculator(_BaseIndex):
 class SAVICalculator(_BaseIndex):
     """Soil Adjusted Vegetation Index = (1+L)*(NIR-Red)/(NIR+Red+L), L=0.5."""
 
-    name = "SAVI"
-    required_bands = ["B08", "B04"]
-    L: float = 0.5
+    def __init__(self, L: float = 0.5) -> None:
+        super().__init__(
+            name="SAVI",
+            required_bands=["B08", "B04"],
+            plot_style=PlotStyle(cmap="RdYlGn", vmin=-1.0, vmax=1.0),
+        )
+        self.L = L
 
     def compute(self, cube: SampleCube) -> xr.DataArray:
         nir = cube.band("B08").astype("float32")
@@ -81,12 +128,14 @@ class SAVICalculator(_BaseIndex):
 
 
 class NBR2Calculator(_BaseIndex):
-    """Normalized Burn Ratio 2 = (SWIR1 - SWIR2) / (SWIR1 + SWIR2).
-    Useful for crop water stress detection.
-    """
+    """Normalized Burn Ratio 2 = (SWIR1 - SWIR2) / (SWIR1 + SWIR2)."""
 
-    name = "NBR2"
-    required_bands = ["B11", "B12"]
+    def __init__(self) -> None:
+        super().__init__(
+            name="NBR2",
+            required_bands=["B11", "B12"],
+            plot_style=PlotStyle(cmap="RdBu", vmin=-1.0, vmax=1.0),
+        )
 
     def compute(self, cube: SampleCube) -> xr.DataArray:
         swir1 = cube.band("B11").astype("float32")
@@ -98,8 +147,12 @@ class NBR2Calculator(_BaseIndex):
 class NDWICalculator(_BaseIndex):
     """Normalized Difference Water Index = (Green - NIR) / (Green + NIR)."""
 
-    name = "NDWI"
-    required_bands = ["B03", "B08"]
+    def __init__(self) -> None:
+        super().__init__(
+            name="NDWI",
+            required_bands=["B03", "B08"],
+            plot_style=PlotStyle(cmap="Blues", vmin=-1.0, vmax=1.0),
+        )
 
     def compute(self, cube: SampleCube) -> xr.DataArray:
         green = cube.band("B03").astype("float32")
@@ -116,8 +169,12 @@ class NDWICalculator(_BaseIndex):
 class RVICalculator(_BaseIndex):
     """Radar Vegetation Index = 4*VH / (VV + VH)."""
 
-    name = "RVI"
-    required_bands = ["VV", "VH"]
+    def __init__(self) -> None:
+        super().__init__(
+            name="RVI",
+            required_bands=["VV", "VH"],
+            plot_style=PlotStyle(cmap="Greens", vmin=0.0, vmax=1.0),
+        )
 
     def compute(self, cube: SampleCube) -> xr.DataArray:
         vv = cube.band("VV").astype("float32")
@@ -129,8 +186,12 @@ class RVICalculator(_BaseIndex):
 class VHVVRatioCalculator(_BaseIndex):
     """VH/VV backscatter ratio — sensitive to canopy structure."""
 
-    name = "VH_VV"
-    required_bands = ["VV", "VH"]
+    def __init__(self) -> None:
+        super().__init__(
+            name="VH_VV",
+            required_bands=["VV", "VH"],
+            plot_style=PlotStyle(cmap="viridis"),
+        )
 
     def compute(self, cube: SampleCube) -> xr.DataArray:
         vv = cube.band("VV").astype("float32")

@@ -7,6 +7,7 @@ from .indices import (
     NBR2Calculator,
     NDVICalculator,
     NDWICalculator,
+    PlotStyle,
     RVICalculator,
     SAVICalculator,
     VHVVRatioCalculator,
@@ -14,8 +15,7 @@ from .indices import (
 from .loader import SampleCube, SampleLoaderProtocol, ZarrBandLoader
 from .config import DatasetConfig, SensorConfig
 from .pipeline import DatasetPipeline, make_pipeline, make_pipeline_from_config
-from .reducer import STAT_FNS, SpectralReducer
-from .visualizer import plot_snapshot
+from .stats import STAT_FNS, ParcelStatsExtractor
 
 __all__ = [
     "SampleCube",
@@ -31,13 +31,13 @@ __all__ = [
     "VHVVRatioCalculator",
     "S2_CALCULATORS",
     "S1_CALCULATORS",
+    "PlotStyle",
     "ALL_CALCULATORS",
-    "SpectralReducer",
+    "ParcelStatsExtractor",
     "STAT_FNS",
     "DatasetConfig",
     "SensorConfig",
     "DatasetPipeline",
     "make_pipeline",
     "make_pipeline_from_config",
-    "plot_snapshot",
 ]

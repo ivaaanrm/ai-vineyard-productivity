@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Protocol, runtime_checkable
+from typing import List, Protocol, runtime_checkable, TYPE_CHECKING
 
 import numpy as np
 import xarray as xr
 
+if TYPE_CHECKING:
+    from .indices import _BaseIndex
 
 class SampleCube:
     """Wraps a (time, variable, y, x) xarray Dataset for a parcel+sensor combination.
@@ -22,7 +24,7 @@ class SampleCube:
         self.parcel_key = parcel_key
         # Decode byte-string variable coords to plain strings
         raw = ds.coords["variable"].values
-        self._variables: list[str] = [
+        self._variables: List[str] = [
             v.decode() if isinstance(v, bytes) else str(v) for v in raw
         ]
     
@@ -31,7 +33,7 @@ class SampleCube:
         return self._ds
 
     @property
-    def variables(self) -> list[str]:
+    def variables(self) -> List[str]:
         return self._variables
 
     @property
@@ -47,7 +49,7 @@ class SampleCube:
     def has_band(self, name: str) -> bool:
         return name in self._variables
 
-    def compute_indices(self, calculators: list) -> None:
+    def compute_indices(self, calculators: List[_BaseIndex]) -> None:
         """Compute indices and append them as new variables in the dataset.
 
         Skips calculators whose required bands are missing or whose output
@@ -71,7 +73,7 @@ class SampleCube:
             )
             new_data = xr.concat([self._ds["data"], new_slice], dim="variable")
             self._variables.append(calc.name)
-            # Rebuild dataset and keep attrs in sync with the updated variable list
+            # Rebuild dataset and keep attrs in sync with the updated variable List
             self._ds = xr.Dataset(
                 {"data": new_data},
                 attrs={**self._ds.attrs, "variables": list(self._variables)},
