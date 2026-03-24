@@ -9,7 +9,7 @@ import pandas as pd
 import xarray as xr
 
 from .indices import _BaseIndex
-from .loader import BandCube
+from .loader import SampleCube
 
 # Supported spatial statistics
 STAT_FNS: dict[str, Callable[[np.ndarray], float]] = {
@@ -53,7 +53,7 @@ class SpectralReducer:
         if unknown:
             raise ValueError(f"Unknown stats: {unknown}. Available: {list(STAT_FNS)}")
 
-    def reduce(self, cube: BandCube) -> pd.DataFrame:
+    def reduce(self, cube: SampleCube) -> pd.DataFrame:
         """Return a DataFrame with one row per timestamp.
 
         Columns: time, parcel_key, sensor, then {layer}_{stat} for each

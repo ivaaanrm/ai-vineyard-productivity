@@ -6,11 +6,11 @@ Sentinel-1 indices: RVI, VH_VV
 
 from __future__ import annotations
 
-from typing import Protocol, runtime_checkable
+from typing import List, Protocol, runtime_checkable
 
 import xarray as xr
 
-from .loader import BandCube
+from .loader import SampleCube
 
 
 @runtime_checkable
@@ -20,8 +20,8 @@ class IndexCalculator(Protocol):
     name: str
     required_bands: list[str]
 
-    def supports(self, cube: BandCube) -> bool: ...
-    def compute(self, cube: BandCube) -> xr.DataArray: ...
+    def supports(self, cube: SampleCube) -> bool: ...
+    def compute(self, cube: SampleCube) -> xr.DataArray: ...
 
 
 class _BaseIndex:
@@ -30,7 +30,7 @@ class _BaseIndex:
     name: str
     required_bands: list[str]
 
-    def supports(self, cube: BandCube) -> bool:
+    def supports(self, cube: SampleCube) -> bool:
         return all(cube.has_band(b) for b in self.required_bands)
 
 
@@ -45,7 +45,7 @@ class NDVICalculator(_BaseIndex):
     name = "NDVI"
     required_bands = ["B08", "B04"]
 
-    def compute(self, cube: BandCube) -> xr.DataArray:
+    def compute(self, cube: SampleCube) -> xr.DataArray:
         nir = cube.band("B08").astype("float32")
         red = cube.band("B04").astype("float32")
         denom = nir + red
@@ -58,7 +58,7 @@ class EVICalculator(_BaseIndex):
     name = "EVI"
     required_bands = ["B08", "B04", "B02"]
 
-    def compute(self, cube: BandCube) -> xr.DataArray:
+    def compute(self, cube: SampleCube) -> xr.DataArray:
         nir = cube.band("B08").astype("float32")
         red = cube.band("B04").astype("float32")
         blue = cube.band("B02").astype("float32")
@@ -73,7 +73,7 @@ class SAVICalculator(_BaseIndex):
     required_bands = ["B08", "B04"]
     L: float = 0.5
 
-    def compute(self, cube: BandCube) -> xr.DataArray:
+    def compute(self, cube: SampleCube) -> xr.DataArray:
         nir = cube.band("B08").astype("float32")
         red = cube.band("B04").astype("float32")
         denom = nir + red + self.L
@@ -88,7 +88,7 @@ class NBR2Calculator(_BaseIndex):
     name = "NBR2"
     required_bands = ["B11", "B12"]
 
-    def compute(self, cube: BandCube) -> xr.DataArray:
+    def compute(self, cube: SampleCube) -> xr.DataArray:
         swir1 = cube.band("B11").astype("float32")
         swir2 = cube.band("B12").astype("float32")
         denom = swir1 + swir2
@@ -101,7 +101,7 @@ class NDWICalculator(_BaseIndex):
     name = "NDWI"
     required_bands = ["B03", "B08"]
 
-    def compute(self, cube: BandCube) -> xr.DataArray:
+    def compute(self, cube: SampleCube) -> xr.DataArray:
         green = cube.band("B03").astype("float32")
         nir = cube.band("B08").astype("float32")
         denom = green + nir
@@ -119,7 +119,7 @@ class RVICalculator(_BaseIndex):
     name = "RVI"
     required_bands = ["VV", "VH"]
 
-    def compute(self, cube: BandCube) -> xr.DataArray:
+    def compute(self, cube: SampleCube) -> xr.DataArray:
         vv = cube.band("VV").astype("float32")
         vh = cube.band("VH").astype("float32")
         denom = vv + vh
@@ -132,7 +132,7 @@ class VHVVRatioCalculator(_BaseIndex):
     name = "VH_VV"
     required_bands = ["VV", "VH"]
 
-    def compute(self, cube: BandCube) -> xr.DataArray:
+    def compute(self, cube: SampleCube) -> xr.DataArray:
         vv = cube.band("VV").astype("float32")
         vh = cube.band("VH").astype("float32")
         return (vh / vv).where(vv != 0)
@@ -142,7 +142,7 @@ class VHVVRatioCalculator(_BaseIndex):
 # Registries
 # ---------------------------------------------------------------------------
 
-S2_CALCULATORS: list[_BaseIndex] = [
+S2_CALCULATORS: List[_BaseIndex] = [
     NDVICalculator(),
     EVICalculator(),
     SAVICalculator(),
@@ -150,9 +150,9 @@ S2_CALCULATORS: list[_BaseIndex] = [
     NDWICalculator(),
 ]
 
-S1_CALCULATORS: list[_BaseIndex] = [
+S1_CALCULATORS: List[_BaseIndex] = [
     RVICalculator(),
     VHVVRatioCalculator(),
 ]
 
-ALL_CALCULATORS: list[_BaseIndex] = S2_CALCULATORS + S1_CALCULATORS
+ALL_CALCULATORS: List[_BaseIndex] = S2_CALCULATORS + S1_CALCULATORS

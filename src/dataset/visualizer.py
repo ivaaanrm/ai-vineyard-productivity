@@ -11,7 +11,7 @@ import pandas as pd
 import xarray as xr
 
 from .indices import EVICalculator, NDVICalculator, RVICalculator
-from .loader import BandCube
+from .loader import SampleCube
 
 
 # ---------------------------------------------------------------------------
@@ -45,7 +45,7 @@ def _make_rgb(red: np.ndarray, green: np.ndarray, blue: np.ndarray) -> np.ndarra
 # ---------------------------------------------------------------------------
 
 
-def _select_time(cube: BandCube, time: int | str | pd.Timestamp) -> int:
+def _select_time(cube: SampleCube, time: int | str | pd.Timestamp) -> int:
     """Return a time-axis index from an integer index or a timestamp-like value."""
     if isinstance(time, int):
         return time
@@ -54,11 +54,11 @@ def _select_time(cube: BandCube, time: int | str | pd.Timestamp) -> int:
     return int(np.argmin(np.abs(times - target)))
 
 
-def _get_slice(cube: BandCube, band: str, t_idx: int) -> np.ndarray:
+def _get_slice(cube: SampleCube, band: str, t_idx: int) -> np.ndarray:
     return cube.band(band).isel(time=t_idx).values
 
 
-def _build_rgb_panel(cube: BandCube, t_idx: int) -> tuple[np.ndarray, str] | None:
+def _build_rgb_panel(cube: SampleCube, t_idx: int) -> tuple[np.ndarray, str] | None:
     """True-colour RGB: B04 (Red), B03 (Green), B02 (Blue). S2 only."""
     if not all(cube.has_band(b) for b in ("B04", "B03", "B02")):
         return None
@@ -70,7 +70,7 @@ def _build_rgb_panel(cube: BandCube, t_idx: int) -> tuple[np.ndarray, str] | Non
     return img, "RGB (B04/B03/B02)"
 
 
-def _build_sar_rgb_panel(cube: BandCube, t_idx: int) -> tuple[np.ndarray, str] | None:
+def _build_sar_rgb_panel(cube: SampleCube, t_idx: int) -> tuple[np.ndarray, str] | None:
     """SAR pseudo-colour: R=VV, G=VH, B=VV/VH. S1 only."""
     if not all(cube.has_band(b) for b in ("VV", "VH")):
         return None
@@ -81,7 +81,7 @@ def _build_sar_rgb_panel(cube: BandCube, t_idx: int) -> tuple[np.ndarray, str] |
     return img, "SAR RGB (VV/VH/VV·VH⁻¹)"
 
 
-def _build_ndvi_panel(cube: BandCube, t_idx: int) -> tuple[np.ndarray, str] | None:
+def _build_ndvi_panel(cube: SampleCube, t_idx: int) -> tuple[np.ndarray, str] | None:
     """NDVI: use native band if present, otherwise compute from B08/B04."""
     if cube.has_band("NDVI"):
         arr = _get_slice(cube, "NDVI", t_idx)
@@ -93,7 +93,7 @@ def _build_ndvi_panel(cube: BandCube, t_idx: int) -> tuple[np.ndarray, str] | No
     return None
 
 
-def _build_band_panel(cube: BandCube, band: str, t_idx: int) -> tuple[np.ndarray, str] | None:
+def _build_band_panel(cube: SampleCube, band: str, t_idx: int) -> tuple[np.ndarray, str] | None:
     """Single-band panel, raw values."""
     if not cube.has_band(band):
         return None
@@ -106,7 +106,7 @@ def _build_band_panel(cube: BandCube, band: str, t_idx: int) -> tuple[np.ndarray
 
 
 def plot_snapshot(
-    cube: BandCube,
+    cube: SampleCube,
     time: int | str | pd.Timestamp = 0,
     extra_bands: list[str] | None = None,
     save_path: Path | str | None = None,
@@ -118,7 +118,7 @@ def plot_snapshot(
     Extra band names can be passed via *extra_bands*.
 
     Args:
-        cube: Loaded BandCube.
+        cube: Loaded SampleCube.
         time: Time index (int) or timestamp string / pd.Timestamp.
         extra_bands: Additional band names to display alongside defaults.
         save_path: If provided, save the figure to this path.

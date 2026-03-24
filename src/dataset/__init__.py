@@ -11,15 +11,15 @@ from .indices import (
     SAVICalculator,
     VHVVRatioCalculator,
 )
-from .loader import BandCube, BandLoaderProtocol, ZarrBandLoader
+from .loader import SampleCube, SampleLoaderProtocol, ZarrBandLoader
 from .config import DatasetConfig, SensorConfig
 from .pipeline import DatasetPipeline, make_pipeline, make_pipeline_from_config
 from .reducer import STAT_FNS, SpectralReducer
 from .visualizer import plot_snapshot
 
 __all__ = [
-    "BandCube",
-    "BandLoaderProtocol",
+    "SampleCube",
+    "SampleLoaderProtocol",
     "ZarrBandLoader",
     "IndexCalculator",
     "NDVICalculator",

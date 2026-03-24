@@ -8,7 +8,7 @@ import pandas as pd
 
 from .config import DatasetConfig
 from .indices import S1_CALCULATORS, S2_CALCULATORS, _BaseIndex
-from .loader import BandLoaderProtocol, ZarrBandLoader
+from .loader import SampleLoaderProtocol, ZarrBandLoader
 from .reducer import SpectralReducer
 
 # Default calculators per sensor (used when no config is provided)
@@ -22,14 +22,14 @@ class DatasetPipeline:
     """Orchestrates loading, index computation, and spatial reduction.
 
     Args:
-        loader: Any object satisfying BandLoaderProtocol.
+        loader: Any object satisfying SampleLoaderProtocol.
         stats: Spatial statistics to compute (see reducer.STAT_FNS).
         extra_calculators: Additional index calculators beyond the sensor defaults.
     """
 
     def __init__(
         self,
-        loader: BandLoaderProtocol,
+        loader: SampleLoaderProtocol,
         stats: list[str] | None = None,
         extra_calculators: list[_BaseIndex] | None = None,
         config: DatasetConfig | None = None,
@@ -50,7 +50,7 @@ class DatasetPipeline:
         return None
 
     def load(self, parcel_key: str, sensor: str):
-        """Load a BandCube with all applicable indices already computed."""
+        """Load a SampleCube with all applicable indices already computed."""
         cube = self.loader.load(parcel_key, sensor)
         cube.compute_indices(self._calculators_for(sensor))
         return cube

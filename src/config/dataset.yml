@@ -13,20 +13,20 @@
 stats:
   - mean
   - std
-  # - median
+  - median
 
 sensors:
   SENTINEL-2:
     compute_indices:
       - NDVI
-      # - EVI
-      # - SAVI
+      - EVI
+      - SAVI
       # - NBR2
       # - NDWI
     output_bands:
       - NDVI
-      # - EVI
-      # - SAVI
+      - EVI
+      - SAVI
       # - NBR2
       # - NDWI
       # - B04   # Red
@@ -38,7 +38,7 @@ sensors:
       - RVI
       - VH_VV
     output_bands:
-      - VV
+      # - VV
       # - VH
       # - RVI
-      # - VH_VV
+      - VH_VV
