@@ -2,14 +2,22 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
-from typing import Dict, List
+from typing import Any, Dict, List
 
+import numpy as np
 import pandas as pd
 
 from .config import DatasetConfig
-from .sensors import S1_CALCULATORS, S2_CALCULATORS, S3_CALCULATORS, IndexCalculator, lee_filter, to_db
-from .loader import SampleCube, SampleLoaderProtocol, ZarrBandLoader
+from .sensors import (
+    S1_CALCULATORS,
+    S2_CALCULATORS,
+    S3_CALCULATORS,
+    SENSOR_PREPROCESSORS,
+    IndexCalculator,
+)
+from .loader import SampleLoaderProtocol, ZarrBandLoader
 from .stats import ParcelStatsExtractor
 
 # Default calculators per sensor (used when no config is provided)
@@ -18,20 +26,6 @@ _SENSOR_CALCULATORS: Dict[str, List[IndexCalculator]] = {
     "SENTINEL-1": S1_CALCULATORS,
     "SENTINEL-3": S3_CALCULATORS,
 }
-
-
-def _preprocess_sar(cube: SampleCube) -> None:
-    """SAR preprocessing: speckle filter → indices (linear) → dB conversion."""
-    if not (cube.has_band("VV") and cube.has_band("VH")):
-        return
-    # 1. Lee speckle filter on linear-scale VV / VH
-    for band in ("VV", "VH"):
-        cube.replace_band(band, lee_filter(cube.band(band).astype("float32")))
-    # 2. All SAR indices require linear-scale bands — compute before dB conversion
-    cube.compute_indices(S1_CALCULATORS)
-    # 3. Convert VV / VH to decibels
-    for band in ("VV", "VH"):
-        cube.replace_band(band, to_db(cube.band(band)))
 
 
 class DatasetPipeline:
@@ -68,16 +62,15 @@ class DatasetPipeline:
     def load(self, parcel_key: str, sensor: str):
         """Load a SampleCube with all applicable indices already computed."""
         cube = self.loader.load(parcel_key, sensor)
-        if sensor == "SENTINEL-1":
-            _preprocess_sar(cube)
+        preprocessor = SENSOR_PREPROCESSORS.get(sensor)
+        if preprocessor:
+            preprocessor(cube)
         cube.compute_indices(self._calculators_for(sensor))
         return cube
 
     def process(self, parcel_key: str, sensor: str) -> pd.DataFrame:
         """Return tabular stats for one parcel/sensor combination."""
-        cube = self.loader.load(parcel_key, sensor)
-        if sensor == "SENTINEL-1":
-            _preprocess_sar(cube)
+        cube = self.load(parcel_key, sensor)
         calculators = self._calculators_for(sensor)
         stats_extractor = ParcelStatsExtractor(
             calculators=calculators,
@@ -86,7 +79,7 @@ class DatasetPipeline:
         )
         return stats_extractor.get_stats(cube)
 
-    def process_many(
+    def execute(
         self,
         parcel_keys: List[str],
         sensors: List[str],

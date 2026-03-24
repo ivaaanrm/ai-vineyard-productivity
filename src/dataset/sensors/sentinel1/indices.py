@@ -1,7 +1,7 @@
 """Sentinel-1 SAR index calculators and preprocessing utilities.
 
 Indices: RVI, VH_VV, DpRVI
-Utilities: lee_filter, to_db
+Utilities: dn_to_sigma0, median_speckle_filter, to_db
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ from typing import List
 
 import numpy as np
 import xarray as xr
-from scipy.ndimage import uniform_filter
+from scipy.ndimage import median_filter
 
 from ...loader import SampleCube
 from ..base import IndexCalculator, PlotStyle
@@ -21,53 +21,42 @@ from ..base import IndexCalculator, PlotStyle
 # ---------------------------------------------------------------------------
 
 
-def lee_filter(da: xr.DataArray, size: int = 7) -> xr.DataArray:
-    """Refined Lee speckle filter approximation using local statistics.
+def dn_to_sigma0(da: xr.DataArray) -> xr.DataArray:
+    """Convert digital numbers to sigma0 linear: sigma0 = DN^2 / 1e9."""
+    return (da.astype("float64") ** 2) / 1e9
 
-    Estimates noise variance as the mean of local variances across valid
-    pixels, then adaptively blends the local mean with the original value
-    based on the ratio of signal to noise variance.
-    """
 
-    def _filter_2d(img: np.ndarray, size: int) -> np.ndarray:
-        mask = np.isnan(img)
-        filled = np.where(mask, 0.0, img).astype("float64")
-        valid = (~mask).astype("float64")
-
-        # NaN-aware local statistics
-        frac = uniform_filter(valid, size=size)
-        safe_frac = np.where(frac > 0, frac, 1.0)
-        local_mean = uniform_filter(filled, size=size) / safe_frac
-        local_sq_mean = uniform_filter(filled**2, size=size) / safe_frac
-        local_var = np.maximum(local_sq_mean - local_mean**2, 0.0)
-
-        # Estimate noise variance as mean local variance over valid pixels
-        noise_var = float(np.mean(local_var[~mask])) if np.any(~mask) else 0.0
-
-        # Lee weight: preserve detail where local_var >> noise_var
-        w = np.where(
-            local_var > noise_var,
-            (local_var - noise_var) / local_var,
-            0.0,
-        )
-
-        result = local_mean + w * (filled - local_mean)
-        result[mask] = np.nan
-        return result.astype("float32")
-
-    data = np.array(da.values, dtype="float32")
+def median_speckle_filter(da: xr.DataArray, size: int = 3) -> xr.DataArray:
+    """Apply a median filter for speckle reduction."""
+    data = da.values.copy()
     if data.ndim == 3:  # (time, y, x)
         for t in range(data.shape[0]):
-            data[t] = _filter_2d(data[t], size)
+            data[t] = median_filter(data[t], size=size)
     elif data.ndim == 2:  # (y, x)
-        data = _filter_2d(data, size)
-
+        data = median_filter(data, size=size)
     return da.copy(data=data)
 
 
 def to_db(da: xr.DataArray, eps: float = 1e-10) -> xr.DataArray:
     """Convert linear power backscatter to decibels: 10 * log10(clip(da, min=eps))."""
     return 10 * np.log10(da.clip(min=eps))
+
+
+def preprocess_sar(cube: SampleCube) -> None:
+    """SAR preprocessing: DN → σ₀ → speckle filter → indices (linear) → dB."""
+    if not (cube.has_band("VV") and cube.has_band("VH")):
+        return
+    # 1. Calibrate: DN → sigma0 linear (σ₀ = DN² / 1e9)
+    for band in ("VV", "VH"):
+        cube.replace_band(band, dn_to_sigma0(cube.band(band)))
+    # 2. Speckle filter on linear-scale sigma0
+    for band in ("VV", "VH"):
+        cube.replace_band(band, median_speckle_filter(cube.band(band)))
+    # 3. All SAR indices require linear-scale bands — compute before dB conversion
+    cube.compute_indices(S1_CALCULATORS)
+    # 4. Convert VV / VH to decibels
+    for band in ("VV", "VH"):
+        cube.replace_band(band, to_db(cube.band(band)))
 
 
 # ---------------------------------------------------------------------------
@@ -112,7 +101,7 @@ class DpRVI(IndexCalculator):
     """Dual-pol Radar Vegetation Index.
 
     DpRVI = (1 - dop) * 4*VH / (VV + VH), where dop = VV / (VV + VH).
-    Operates on linear-scale bands (before dB conversion).
+    Operates on linear-scale sigma0 bands (before dB conversion).
     """
 
     def __init__(self) -> None:

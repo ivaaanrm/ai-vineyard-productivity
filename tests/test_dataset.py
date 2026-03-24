@@ -5,6 +5,7 @@ ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT))
 
 from src.dataset.pipeline import make_pipeline_from_config
+from src.utils.export import export
 from src.visual.visualizer import plot_snapshot
 
 IMAGES = ROOT / "images/dataset"
@@ -36,13 +37,15 @@ print(cube_s3)
 # 2. Tabular stats — one row per timestamp, one column per band/index/stat
 # ---------------------------------------------------------------------------
 
-df = pipeline.process_many(
+df = pipeline.execute(
     parcel_keys=[PARCEL],
     sensors=["SENTINEL-2", "SENTINEL-1"],
 )
 
 print("\n=== Tabular stats ===")
 print(df)
+
+export(df, output_dir=ROOT / "data/datasets/processed", name="test_train")
 
 # ---------------------------------------------------------------------------
 # 3. Snapshot plots — default panels (RGB/SAR-RGB + NDVI) + extra indices

@@ -9,7 +9,7 @@ from __future__ import annotations
 import numpy as np
 import xarray as xr
 
-from src.dataset.sensors import PlotStyle, lee_filter, to_db
+from src.dataset.sensors import PlotStyle, dn_to_sigma0, median_speckle_filter, to_db
 from src.dataset.loader import SampleCube
 
 _SAR_BANDS = {"VV", "VH"}
@@ -86,10 +86,10 @@ class RGBComposite(_BaseComposite):
 
 
 def _sar_to_db(arr: np.ndarray) -> np.ndarray:
-    """Ensure a SAR 2-D array is in dB, applying speckle filter if needed."""
-    if np.nanmedian(arr) > 0:  # linear scale → filter + convert
+    """Ensure a SAR 2-D array is in dB: DN → σ₀ → median filter → dB."""
+    if np.nanmedian(arr) > 0:  # raw DN scale → calibrate + filter + convert
         da = xr.DataArray(arr.astype("float32"), dims=["y", "x"])
-        return to_db(lee_filter(da)).values
+        return to_db(median_speckle_filter(dn_to_sigma0(da))).values
     return arr  # already in dB
 
 
