@@ -1,0 +1,108 @@
+"""End-to-end pipeline: load → compute indices → reduce to tabular data."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pandas as pd
+
+from .config import DatasetConfig
+from .indices import S1_CALCULATORS, S2_CALCULATORS, _BaseIndex
+from .loader import BandLoaderProtocol, ZarrBandLoader
+from .reducer import SpectralReducer
+
+# Default calculators per sensor (used when no config is provided)
+_SENSOR_CALCULATORS: dict[str, list[_BaseIndex]] = {
+    "SENTINEL-2": S2_CALCULATORS,
+    "SENTINEL-1": S1_CALCULATORS,
+}
+
+
+class DatasetPipeline:
+    """Orchestrates loading, index computation, and spatial reduction.
+
+    Args:
+        loader: Any object satisfying BandLoaderProtocol.
+        stats: Spatial statistics to compute (see reducer.STAT_FNS).
+        extra_calculators: Additional index calculators beyond the sensor defaults.
+    """
+
+    def __init__(
+        self,
+        loader: BandLoaderProtocol,
+        stats: list[str] | None = None,
+        extra_calculators: list[_BaseIndex] | None = None,
+        config: DatasetConfig | None = None,
+    ) -> None:
+        self.loader = loader
+        self.config = config
+        self.stats = config.stats if config else (stats or ["mean", "std"])
+        self.extra_calculators = extra_calculators or []
+
+    def _calculators_for(self, sensor: str) -> list[_BaseIndex]:
+        if self.config:
+            return self.config.calculators_for(sensor) + self.extra_calculators
+        return _SENSOR_CALCULATORS.get(sensor, []) + self.extra_calculators
+
+    def _output_bands_for(self, sensor: str) -> list[str] | None:
+        if self.config:
+            return self.config.output_bands_for(sensor)
+        return None
+
+    def load(self, parcel_key: str, sensor: str):
+        """Load a BandCube with all applicable indices already computed."""
+        cube = self.loader.load(parcel_key, sensor)
+        cube.compute_indices(self._calculators_for(sensor))
+        return cube
+
+    def process(self, parcel_key: str, sensor: str) -> pd.DataFrame:
+        """Return tabular stats for one parcel/sensor combination."""
+        cube = self.loader.load(parcel_key, sensor)
+        calculators = self._calculators_for(sensor)
+        reducer = SpectralReducer(
+            calculators=calculators,
+            stats=self.stats,
+            output_bands=self._output_bands_for(sensor),
+        )
+        return reducer.reduce(cube)
+
+    def process_many(
+        self,
+        parcel_keys: list[str],
+        sensors: list[str],
+    ) -> pd.DataFrame:
+        """Process multiple parcel/sensor pairs and concatenate results.
+
+        Silently skips combinations where no zarr store exists.
+        """
+        frames: list[pd.DataFrame] = []
+        for parcel_key in parcel_keys:
+            for sensor in sensors:
+                try:
+                    frames.append(self.process(parcel_key, sensor))
+                except FileNotFoundError:
+                    pass
+        return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+
+
+def make_pipeline(
+    base_path: Path | str,
+    stats: list[str] | None = None,
+    extra_calculators: list[_BaseIndex] | None = None,
+) -> DatasetPipeline:
+    """Convenience factory: build a pipeline from an agrixel output base path."""
+    return DatasetPipeline(
+        loader=ZarrBandLoader(base_path),
+        stats=stats,
+        extra_calculators=extra_calculators,
+    )
+
+
+def make_pipeline_from_config(
+    base_path: Path | str,
+    config: Path | str | DatasetConfig,
+) -> DatasetPipeline:
+    """Build a pipeline fully driven by a YAML config file."""
+    if not isinstance(config, DatasetConfig):
+        config = DatasetConfig.from_yaml(config)
+    return DatasetPipeline(loader=ZarrBandLoader(base_path), config=config)
