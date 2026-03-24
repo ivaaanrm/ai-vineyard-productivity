@@ -13,9 +13,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from src.dataset.indices import ALL_CALCULATORS, IndexCalculator, NDVI
+from src.dataset.sensors import ALL_CALCULATORS, IndexCalculator, NDVI
 from src.dataset.loader import SampleCube
-from src.visual.panels import ALL_COMPOSITE_PANELS, _RawBandPanel
+from src.visual.panels import ALL_COMPOSITE_PANELS, SARBandPanel, _RawBandPanel, _SAR_BANDS, _percentile_stretch
 
 _CALCULATOR_REGISTRY: Dict[str, IndexCalculator] = {c.name: c for c in ALL_CALCULATORS}
 
@@ -74,7 +74,7 @@ def plot_snapshot(
         if name in _CALCULATOR_REGISTRY and _CALCULATOR_REGISTRY[name].supports(cube):
             panels.append(_CALCULATOR_REGISTRY[name])
         elif cube.has_band(name):
-            panels.append(_RawBandPanel(name))
+            panels.append(SARBandPanel(name) if name in _SAR_BANDS else _RawBandPanel(name))
         else:
             print(f"Warning: '{name}' not found — skipped.")
 
@@ -97,7 +97,12 @@ def plot_snapshot(
             ax.imshow(arr)
         else:
             s = panel.plot_style
-            im = ax.imshow(arr, cmap=s.cmap, vmin=s.vmin, vmax=s.vmax)
+            if s.vmin is None and s.vmax is None:
+                arr = _percentile_stretch(arr)
+                vmin, vmax = 0.0, 1.0
+            else:
+                vmin, vmax = s.vmin, s.vmax
+            im = ax.imshow(arr, cmap=s.cmap, vmin=vmin, vmax=vmax)
             fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
         ax.set_title(panel.title, fontsize=10)
         ax.axis("off")

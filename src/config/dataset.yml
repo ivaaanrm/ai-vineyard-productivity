@@ -20,13 +20,13 @@ sensors:
     compute_indices:
       - NDVI
       - EVI
-      - SAVI
+      # - SAVI
       # - NBR2
       # - NDWI
     output_bands:
       - NDVI
       - EVI
-      - SAVI
+      # - SAVI
       # - NBR2
       # - NDWI
       # - B04   # Red
@@ -37,8 +37,10 @@ sensors:
     compute_indices:
       - RVI
       - VH_VV
+      - DpRVI
     output_bands:
-      # - VV
+      - VV
       # - VH
       # - RVI
       - VH_VV
+      - DpRVI

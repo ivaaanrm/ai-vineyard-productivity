@@ -4,10 +4,10 @@ from pathlib import Path
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT))
 
-from src.dataset import make_pipeline_from_config
-from src.visual import plot_snapshot
+from src.dataset.pipeline import make_pipeline_from_config
+from src.visual.visualizer import plot_snapshot
 
-IMAGES = ROOT / "data/images"
+IMAGES = ROOT / "images/dataset"
 BASE = str(ROOT / "agrixel-fair-dockerV2/data/output/files")
 CONFIG = str(ROOT / "src/config/dataset.yml")
 PARCEL = "L62196,L62198"
@@ -56,6 +56,6 @@ plot_snapshot(
 plot_snapshot(
     cube_s1,
     time="2021-07-26",
-    extra_bands=["VV", "RVI", "VH_VV"],
+    extra_bands=["VV", "RVI", "VH_VV", "DpRVI"],
     save_path=IMAGES / "output_s1_snapshot.png",
 )

@@ -8,8 +8,8 @@ from typing import Dict, List
 import pandas as pd
 
 from .config import DatasetConfig
-from .indices import S1_CALCULATORS, S2_CALCULATORS, IndexCalculator
-from .loader import SampleLoaderProtocol, ZarrBandLoader
+from .sensors import S1_CALCULATORS, S2_CALCULATORS, IndexCalculator, lee_filter, to_db
+from .loader import SampleCube, SampleLoaderProtocol, ZarrBandLoader
 from .stats import ParcelStatsExtractor
 
 # Default calculators per sensor (used when no config is provided)
@@ -17,6 +17,20 @@ _SENSOR_CALCULATORS: Dict[str, List[IndexCalculator]] = {
     "SENTINEL-2": S2_CALCULATORS,
     "SENTINEL-1": S1_CALCULATORS,
 }
+
+
+def _preprocess_sar(cube: SampleCube) -> None:
+    """SAR preprocessing: speckle filter → indices (linear) → dB conversion."""
+    if not (cube.has_band("VV") and cube.has_band("VH")):
+        return
+    # 1. Lee speckle filter on linear-scale VV / VH
+    for band in ("VV", "VH"):
+        cube.replace_band(band, lee_filter(cube.band(band).astype("float32")))
+    # 2. All SAR indices require linear-scale bands — compute before dB conversion
+    cube.compute_indices(S1_CALCULATORS)
+    # 3. Convert VV / VH to decibels
+    for band in ("VV", "VH"):
+        cube.replace_band(band, to_db(cube.band(band)))
 
 
 class DatasetPipeline:
@@ -53,12 +67,16 @@ class DatasetPipeline:
     def load(self, parcel_key: str, sensor: str):
         """Load a SampleCube with all applicable indices already computed."""
         cube = self.loader.load(parcel_key, sensor)
+        if sensor == "SENTINEL-1":
+            _preprocess_sar(cube)
         cube.compute_indices(self._calculators_for(sensor))
         return cube
 
     def process(self, parcel_key: str, sensor: str) -> pd.DataFrame:
         """Return tabular stats for one parcel/sensor combination."""
         cube = self.loader.load(parcel_key, sensor)
+        if sensor == "SENTINEL-1":
+            _preprocess_sar(cube)
         calculators = self._calculators_for(sensor)
         stats_extractor = ParcelStatsExtractor(
             calculators=calculators,

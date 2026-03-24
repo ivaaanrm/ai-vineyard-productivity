@@ -9,7 +9,7 @@ import numpy as np
 import xarray as xr
 
 if TYPE_CHECKING:
-    from .indices import IndexCalculator
+    from .sensors import IndexCalculator
 
 class SampleCube:
     """Wraps a (time, variable, y, x) xarray Dataset for a parcel+sensor combination.
@@ -48,6 +48,18 @@ class SampleCube:
 
     def has_band(self, name: str) -> bool:
         return name in self._variables
+
+    def replace_band(self, name: str, new_da: xr.DataArray) -> None:
+        """Replace an existing band's data (loads lazy data into memory)."""
+        key = name.encode() if name in self._variables else name
+        var_list = list(self._ds.coords["variable"].values)
+        idx = var_list.index(key)
+        data = np.array(self._ds["data"].values)  # (time, variable, y, x)
+        data[:, idx, :, :] = new_da.values
+        new_arr = xr.DataArray(
+            data, dims=self._ds["data"].dims, coords=self._ds["data"].coords
+        )
+        self._ds = xr.Dataset({"data": new_arr}, attrs=self._ds.attrs)
 
     def compute_indices(self, calculators: List[IndexCalculator]) -> None:
         """Compute indices and append them as new variables in the dataset.

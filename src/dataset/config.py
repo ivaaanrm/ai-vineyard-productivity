@@ -8,7 +8,7 @@ from typing import Dict, List
 import yaml
 from pydantic import BaseModel, model_validator
 
-from .indices import ALL_CALCULATORS, IndexCalculator
+from .sensors import ALL_CALCULATORS, IndexCalculator
 
 # Registry: name → calculator instance
 _CALCULATOR_REGISTRY: Dict[str, IndexCalculator] = {c.name: c for c in ALL_CALCULATORS}

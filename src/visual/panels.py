@@ -7,9 +7,12 @@ _RawBandPanel is a fallback for any band that has no dedicated calculator.
 from __future__ import annotations
 
 import numpy as np
+import xarray as xr
 
-from src.dataset.indices import PlotStyle
+from src.dataset.sensors import PlotStyle, lee_filter, to_db
 from src.dataset.loader import SampleCube
+
+_SAR_BANDS = {"VV", "VH"}
 
 
 # ---------------------------------------------------------------------------
@@ -82,21 +85,29 @@ class RGBComposite(_BaseComposite):
         )
 
 
+def _sar_to_db(arr: np.ndarray) -> np.ndarray:
+    """Ensure a SAR 2-D array is in dB, applying speckle filter if needed."""
+    if np.nanmedian(arr) > 0:  # linear scale → filter + convert
+        da = xr.DataArray(arr.astype("float32"), dims=["y", "x"])
+        return to_db(lee_filter(da)).values
+    return arr  # already in dB
+
+
 class SARRGBComposite(_BaseComposite):
-    """SAR pseudo-colour composite: R=VV, G=VH, B=VV/VH (Sentinel-1)."""
+    """SAR false-colour composite: R=VV, G=VH, B=VV−VH (dB)."""
 
     def __init__(self) -> None:
         super().__init__(
             name="SAR_RGB",
-            title="SAR RGB (VV / VH / VV·VH⁻¹)",
+            title="SAR RGB (VV / VH / VV−VH) dB",
             required_bands=["VV", "VH"],
         )
 
     def render(self, cube: SampleCube, t_idx: int) -> np.ndarray:
-        vv = cube.band("VV").isel(time=t_idx).values.astype("float32")
-        vh = cube.band("VH").isel(time=t_idx).values.astype("float32")
-        ratio = np.where(vv != 0, vv / vh, np.nan)
-        return _make_rgb(vv, vh, ratio)
+        vv = _sar_to_db(cube.band("VV").isel(time=t_idx).values.astype("float32"))
+        vh = _sar_to_db(cube.band("VH").isel(time=t_idx).values.astype("float32"))
+        diff = vv - vh
+        return _make_rgb(vv, vh, diff)
 
 
 # ---------------------------------------------------------------------------
@@ -119,6 +130,29 @@ class _RawBandPanel:
 
     def render(self, cube: SampleCube, t_idx: int) -> np.ndarray:
         return cube.band(self.name).isel(time=t_idx).values
+
+
+# ---------------------------------------------------------------------------
+# SAR band panel
+# ---------------------------------------------------------------------------
+
+
+class SARBandPanel:
+    """Single SAR band rendered in dB with speckle filtering."""
+
+    is_rgb = False
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+        self.title = f"{name} (dB)"
+        self.plot_style = PlotStyle(cmap="gray")
+
+    def supports(self, cube: SampleCube) -> bool:
+        return cube.has_band(self.name)
+
+    def render(self, cube: SampleCube, t_idx: int) -> np.ndarray:
+        arr = cube.band(self.name).isel(time=t_idx).values.astype("float32")
+        return _sar_to_db(arr)
 
 
 # ---------------------------------------------------------------------------
