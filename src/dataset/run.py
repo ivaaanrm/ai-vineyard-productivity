@@ -60,7 +60,7 @@ def main():
     export(
         df_processed,
         output_dir="/Users/ivanr/Developer/ai-vineyard-productivity/experiments/PRUEBA00/data",
-        name="train_df",
+        name="train_df_small_2020",
         config=config,
     )
 
