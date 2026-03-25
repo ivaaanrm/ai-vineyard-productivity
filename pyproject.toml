@@ -30,4 +30,5 @@ dependencies = [
     "nbconvert>=7.17.0",
     "nbclient>=0.10.4",
     "scikit-learn>=1.8.0",
+    "rich>=14.3.3",
 ]

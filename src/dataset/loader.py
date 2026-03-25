@@ -9,92 +9,76 @@ import xarray as xr
 if TYPE_CHECKING:
     from .sensors import IndexCalculator
 
-class SampleCube:
-    """Wraps a (time, variable, y, x) xarray Dataset for a parcel+sensor combination.
 
-    Variable coordinates are stored as bytes in the zarr files; this class
-    handles the encoding transparently so callers always use plain strings.
+def _unpack_zarr(ds: xr.Dataset) -> xr.Dataset:
+    """Convert 4D (time, variable, y, x) zarr format to a standard Dataset.
+
+    Each value along the ``variable`` dimension becomes its own data variable
+    with dimensions (time, y, x), matching the canonical xarray Dataset layout.
+    """
+    data = ds["data"]
+    variables = {}
+    for v in data.coords["variable"].values:
+        name = v.decode() if isinstance(v, bytes) else str(v)
+        variables[name] = data.sel(variable=v).drop_vars("variable")
+    return xr.Dataset(variables, attrs=ds.attrs)
+
+
+class SampleCube:
+    """Spatio-temporal cube for a single parcel/sensor pair.
+
+    Internally backed by a standard ``xr.Dataset`` with dimensions
+    ``(time, y, x)`` and one data variable per band/index, so you can
+    use the full xarray API directly via ``cube.ds``::
+
+        cube.ds.NDVI.mean(["x", "y"]).plot.line("b-^", figsize=(11, 4))
     """
 
     def __init__(self, ds: xr.Dataset, sensor: str, parcel_key: str) -> None:
-        self._ds = ds
         self.sensor = sensor
         self.parcel_key = parcel_key
-        # Build name→raw_key mapping (handles both bytes and str coords)
-        raw = ds.coords["variable"].values
-        self._var_keys: dict[str, object] = {}
-        for v in raw:
-            name = v.decode() if isinstance(v, bytes) else str(v)
-            self._var_keys[name] = v
-    
+        # Accept raw 4D zarr format (time, variable, y, x) or standard Dataset
+        if "data" in ds.data_vars and "variable" in ds["data"].dims:
+            self._ds = _unpack_zarr(ds)
+        else:
+            self._ds = ds
+
     @property
-    def ds(self):
+    def ds(self) -> xr.Dataset:
+        """Standard xarray Dataset — each band is a (time, y, x) data variable."""
         return self._ds
 
     @property
     def variables(self) -> List[str]:
-        return list(self._var_keys)
+        return list(self._ds.data_vars)
 
     @property
     def times(self) -> np.ndarray:
         return self._ds.coords["time"].values
 
-    def _raw_key(self, name: str) -> object:
-        """Return the raw coordinate value for a band name."""
-        return self._var_keys[name]
-
     def band(self, name: str) -> xr.DataArray:
         """Return (time, y, x) DataArray for a named band."""
-        return self._ds["data"].sel(variable=self._raw_key(name))
+        return self._ds[name]
 
     def has_band(self, name: str) -> bool:
-        return name in self._var_keys
+        return name in self._ds.data_vars
 
     def replace_band(self, name: str, new_da: xr.DataArray) -> None:
-        """Replace an existing band's data (loads lazy data into memory)."""
-        key = self._raw_key(name)
-        var_list = list(self._ds.coords["variable"].values)
-        idx = var_list.index(key)
-        data = np.array(self._ds["data"].values)  # (time, variable, y, x)
-        data[:, idx, :, :] = new_da.values
-        new_arr = xr.DataArray(
-            data, dims=self._ds["data"].dims, coords=self._ds["data"].coords
-        )
-        self._ds = xr.Dataset({"data": new_arr}, attrs=self._ds.attrs)
+        """Replace an existing band's data in place."""
+        self._ds[name] = new_da
 
     def compute_indices(self, calculators: List[IndexCalculator]) -> None:
-        """Compute indices and append them as new variables in the dataset.
+        """Compute indices and append them as new data variables. Mutates in place.
 
         Skips calculators whose required bands are missing or whose output
-        name already exists as a variable. Mutates the cube in place.
+        name already exists as a variable.
         """
-        # Use same type as existing variable coords (bytes or str)
-        first_raw = next(iter(self._var_keys.values()), None)
-        use_bytes = isinstance(first_raw, bytes)
-
         for calc in calculators:
-            if calc.name in self._var_keys:
+            if calc.name in self._ds.data_vars:
                 continue
             if not calc.supports(self):
                 continue
-            da = calc.compute(self)  # (time, y, x)
-            raw_key = calc.name.encode() if use_bytes else calc.name
-            new_slice = xr.DataArray(
-                da.values[:, np.newaxis, :, :],
-                dims=["time", "variable", "y", "x"],
-                coords={
-                    "time": self._ds.coords["time"],
-                    "variable": [raw_key],
-                    "y": self._ds.coords["y"],
-                    "x": self._ds.coords["x"],
-                },
-            )
-            new_data = xr.concat([self._ds["data"], new_slice], dim="variable")
-            self._var_keys[calc.name] = raw_key
-            self._ds = xr.Dataset(
-                {"data": new_data},
-                attrs={**self._ds.attrs, "variables": list(self._var_keys)},
-            )
+            self._ds[calc.name] = calc.compute(self)
 
     def __str__(self) -> str:
         return str(self._ds)

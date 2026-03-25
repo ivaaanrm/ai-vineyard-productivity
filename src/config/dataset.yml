@@ -13,8 +13,8 @@
 
 stats:
   - mean
-  - std
-  - median
+  # - std
+  # - median
 
 sensors:
   SENTINEL-2:
@@ -38,13 +38,13 @@ sensors:
     compute_indices:
       - RVI
       - VH_VV
-      - DpRVI
+      # - DpRVI
     output_bands:
       - VV
-      # - VH
+      - VH
       # - RVI
       - VH_VV
-      - DpRVI
+      # - DpRVI
 
   SENTINEL-3:
     compute_indices:

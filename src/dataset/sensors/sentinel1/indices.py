@@ -65,20 +65,27 @@ def preprocess_sar(cube: SampleCube) -> None:
 
 
 class RVI(IndexCalculator):
-    """Radar Vegetation Index = 4*VH / (VV + VH)."""
+    """DpRVIVV — Dual-Polarized Radar Vegetation Index (VV).
+
+    RVI = (4 × σ⁰_VH) / (σ⁰_VV + σ⁰_VH)
+
+    Matches the spyndex DpRVIVV definition (doi:10.3390/app9040655).
+    Range: 0 (bare soil) → 1 (dense vegetation).
+    Operates on linear-scale sigma0 bands (before dB conversion).
+    """
 
     def __init__(self) -> None:
         super().__init__(
             name="RVI",
             required_bands=["VV", "VH"],
-            plot_style=PlotStyle(cmap="Greens", vmin=0.0, vmax=1.0),
+            plot_style=PlotStyle(cmap="PiYG", vmin=0.0, vmax=1.0),
         )
 
     def compute(self, cube: SampleCube) -> xr.DataArray:
         vv = cube.band("VV").astype("float32")
         vh = cube.band("VH").astype("float32")
         denom = vv + vh
-        return (4 * vh / denom).where(denom != 0)
+        return (4.0 * vh / denom).where(denom != 0)
 
 
 class VHVVRatio(IndexCalculator):

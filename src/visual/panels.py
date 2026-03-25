@@ -31,13 +31,83 @@ def _percentile_stretch(arr: np.ndarray, low: float = 2, high: float = 98) -> np
 
 
 def _make_rgb(red: np.ndarray, green: np.ndarray, blue: np.ndarray) -> np.ndarray:
-    """Stack and stretch three 2-D arrays into an (H, W, 3) uint8 image."""
+    """Stack and stretch three 2-D arrays into an (H, W, 4) RGBA uint8 image.
+
+    NaN pixels become fully transparent (alpha = 0).
+    """
+    valid = np.isfinite(red) & np.isfinite(green) & np.isfinite(blue)
     rgb = np.dstack([
         _percentile_stretch(red),
         _percentile_stretch(green),
         _percentile_stretch(blue),
     ])
-    return (np.nan_to_num(rgb, nan=0.0) * 255).astype(np.uint8)
+    rgba = np.dstack([np.nan_to_num(rgb, nan=0.0), valid.astype("float32")])
+    return (rgba * 255).astype(np.uint8)
+
+
+# ---------------------------------------------------------------------------
+# Sentinel-2 true-colour optimisation (mirrors Sentinel Hub evalscript)
+# Contrast enhance / highlight compress + saturation boost + sRGB encoding
+# ---------------------------------------------------------------------------
+
+_S2_MAX_R = 3.0   # max reflectance headroom
+_S2_MID_R = 0.13  # mid-tone anchor
+_S2_SAT = 1.2     # saturation multiplier
+_S2_GAMMA = 1.8
+_S2_G_OFF = 0.01
+_S2_G_OFF_POW = _S2_G_OFF ** _S2_GAMMA
+_S2_G_OFF_RANGE = (1.0 + _S2_G_OFF) ** _S2_GAMMA - _S2_G_OFF_POW
+
+
+def _adj(a: np.ndarray, tx: float, ty: float, max_c: float) -> np.ndarray:
+    ar = np.clip(a / max_c, 0.0, 1.0)
+    denom = ar * (2.0 * tx / max_c - 1.0) - tx / max_c
+    numer = ar * (ar * (tx / max_c + ty - 1.0) - ty)
+    return np.where(denom != 0.0, numer / denom, 0.0)
+
+
+def _adj_gamma(b: np.ndarray) -> np.ndarray:
+    return ((b + _S2_G_OFF) ** _S2_GAMMA - _S2_G_OFF_POW) / _S2_G_OFF_RANGE
+
+
+def _s_adj(a: np.ndarray) -> np.ndarray:
+    return _adj_gamma(_adj(a, _S2_MID_R, 1.0, _S2_MAX_R))
+
+
+def _sat_enh(
+    r: np.ndarray, g: np.ndarray, b: np.ndarray
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    avg_s = (r + g + b) / 3.0 * (1.0 - _S2_SAT)
+    return (
+        np.clip(avg_s + r * _S2_SAT, 0.0, 1.0),
+        np.clip(avg_s + g * _S2_SAT, 0.0, 1.0),
+        np.clip(avg_s + b * _S2_SAT, 0.0, 1.0),
+    )
+
+
+def _s_rgb(c: np.ndarray) -> np.ndarray:
+    return np.where(
+        c <= 0.0031308,
+        12.92 * c,
+        1.055 * np.power(np.maximum(c, 0.0), 0.41666666666) - 0.055,
+    )
+
+
+def _make_s2_rgb(red: np.ndarray, green: np.ndarray, blue: np.ndarray) -> np.ndarray:
+    """Sentinel Hub-style S2 true-colour: contrast enhance + highlight compress + sRGB.
+
+    Input bands are expected in Sentinel-2 L2A DN scale (0–10000); divided by
+    10000 to match the 0–1 reflectance range assumed by the evalscript constants.
+    NaN pixels become fully transparent (alpha = 0).
+    """
+    valid = np.isfinite(red) & np.isfinite(green) & np.isfinite(blue)
+    r = _s_adj(np.nan_to_num(red.astype("float32"), nan=0.0) / 10000.0)
+    g = _s_adj(np.nan_to_num(green.astype("float32"), nan=0.0) / 10000.0)
+    b = _s_adj(np.nan_to_num(blue.astype("float32"), nan=0.0) / 10000.0)
+    r, g, b = _sat_enh(r, g, b)
+    rgb = np.dstack([_s_rgb(r), _s_rgb(g), _s_rgb(b)])
+    rgba = np.dstack([np.clip(rgb, 0.0, 1.0), valid.astype("float32")])
+    return (rgba * 255).astype(np.uint8)
 
 
 # ---------------------------------------------------------------------------
@@ -78,7 +148,7 @@ class RGBComposite(_BaseComposite):
         )
 
     def render(self, cube: SampleCube, t_idx: int) -> np.ndarray:
-        return _make_rgb(
+        return _make_s2_rgb(
             cube.band("B04").isel(time=t_idx).values,
             cube.band("B03").isel(time=t_idx).values,
             cube.band("B02").isel(time=t_idx).values,
