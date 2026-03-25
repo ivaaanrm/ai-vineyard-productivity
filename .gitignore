@@ -5,8 +5,8 @@ data/
 agrixel-fair-dockerV2/*
 !agrixel-fair-dockerV2/streamlit_app/
 !agrixel-fair-dockerV2/streamlit_app/**
-!agrixel-fair-dockerV2/app_downloader/
-!agrixel-fair-dockerV2/app_downloader/**
+!agrixel-fair-dockerV2/cli_app/
+!agrixel-fair-dockerV2/cli_app/**
 
 # AI / Assistant specific
 .claude

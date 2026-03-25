@@ -32,4 +32,6 @@ dependencies = [
     "scikit-learn>=1.8.0",
     "rich>=14.3.3",
     "tqdm>=4.67.3",
+    "typer>=0.24.1",
+    "pyyaml>=6.0.3",
 ]
