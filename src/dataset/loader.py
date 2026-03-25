@@ -5,6 +5,8 @@ from typing import TYPE_CHECKING, List, Protocol
 
 import numpy as np
 import xarray as xr
+from rasterio.features import geometry_mask
+from rasterio.transform import Affine
 
 if TYPE_CHECKING:
     from .sensors import IndexCalculator
@@ -62,6 +64,41 @@ class SampleCube:
 
     def has_band(self, name: str) -> bool:
         return name in self._ds.data_vars
+
+    def mask(self, geometry) -> "SampleCube":
+        """Return a new SampleCube with pixels outside *geometry* set to NaN.
+
+        Args:
+            geometry: A WKT string (``"POLYGON ((...))"``) or a Shapely
+                      geometry in the same CRS as the cube.  Anything that
+                      implements ``__geo_interface__`` is also accepted
+                      (e.g. a GeoDataFrame row's geometry).
+
+        Returns:
+            A new SampleCube; the original is not modified.
+        """
+        if isinstance(geometry, str):
+            from shapely import wkt
+            geometry = wkt.loads(geometry)
+        x = self._ds.coords["x"].values
+        y = self._ds.coords["y"].values
+        dx = float(x[1] - x[0])
+        dy = float(y[1] - y[0])  # negative when y runs north→south
+
+        # Build affine so pixel (col=0, row=0) centres on (x[0], y[0])
+        transform = Affine(dx, 0.0, float(x[0]) - dx / 2,
+                           0.0, dy, float(y[0]) - dy / 2)
+
+        valid = geometry_mask(
+            [geometry],
+            out_shape=(len(y), len(x)),
+            transform=transform,
+            invert=True,  # True = inside polygon (keep), False = outside (mask)
+        )
+        valid_da = xr.DataArray(valid, dims=["y", "x"],
+                                coords={"y": y, "x": x})
+        return SampleCube(self._ds.where(valid_da),
+                          sensor=self.sensor, parcel_key=self.parcel_key)
 
     def replace_band(self, name: str, new_da: xr.DataArray) -> None:
         """Replace an existing band's data in place."""
