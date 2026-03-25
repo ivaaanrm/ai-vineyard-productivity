@@ -7,7 +7,7 @@ from shapely import wkt
 from shapely.geometry import box
 
 # Margin in meters (EPSG:3857 units) added on each side of the bounding box
-MARGIN = 1500
+MARGIN = 250
 
 # WKT geometry in EPSG:3857 (Web Mercator)
 wkt_str = (
@@ -17,21 +17,17 @@ wkt_str = (
 # Parse WKT to shapely geometry and get bounding box
 geom = wkt.loads(wkt_str)
 minx, miny, maxx, maxy = geom.bounds
-
 # Expand bbox by margin on each side
 bbox_geom = box(minx - MARGIN, miny - MARGIN, maxx + MARGIN, maxy + MARGIN)
 
 # Create GeoDataFrame with CRS EPSG:3857
 gdf = gpd.GeoDataFrame(geometry=[bbox_geom], crs="EPSG:3857")
-
-# Reproject to EPSG:4326 (WGS84)
-gdf_4326 = gdf.to_crs("EPSG:4326")
 gdf_3857 = gdf.to_crs("EPSG:3857")
-# Convert to GeoJSON
-geojson = json.loads(gdf_4326.to_json())
-
-print(json.dumps(geojson, indent=2))
-
-# WKT output in EPSG:4326
 print("\nWKT (EPSG:3857):")
 print(gdf_3857.geometry[0].wkt)
+
+# Convert to GeoJSON
+gdf_4326 = gdf.to_crs("EPSG:4326")
+geojson = json.loads(gdf_4326.to_json())
+# print(json.dumps(geojson, indent=2))
+

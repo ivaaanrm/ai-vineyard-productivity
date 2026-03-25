@@ -1,20 +1,23 @@
-# Dataset pipeline configuration
-# --------------------------------
-# stats:         spatial statistics to compute per band/index per timestep
-#                available: mean, std, median, p25, p75, min, max
-#
-# sensors:
-#   compute_indices: indices to compute and append to the cube
-#                    available S2: NDVI, EVI, SAVI, NBR2, NDWI
-#                    available S1: RVI, VH_VV
-#                    available S3: LST_C
-#   output_bands:    bands/indices to include in the tabular output
-#                    (subset of native bands + compute_indices)
+parcel_mask: true
+fuse_sensors: true
+
+paths:
+  aoi_table: /Users/ivanr/Developer/ai-vineyard-productivity/agrixel-fair-dockerV2/data/input/aoi_table.csv
+
+# Temporal aggregation (optional)
+temporal:
+  resample:
+    freq: "ME"       # pandas offset: MS=month-start, 4W=4-weeks, 2W=biweekly, ME=month-end
+    agg: "median"    # mean, median, min, max, sum, std
+  rolling:
+    window: 2
+    min_periods: 1
+    agg: "mean"
 
 stats:
   - mean
   - std
-  - median
+  # - median
 
 sensors:
   SENTINEL-2:
@@ -38,13 +41,13 @@ sensors:
     compute_indices:
       - RVI
       - VH_VV
-      - DpRVI
+      # - DpRVI
     output_bands:
-      - VV
+      # - VV
       # - VH
-      # - RVI
+      - RVI
       - VH_VV
-      - DpRVI
+      # - DpRVI
 
   SENTINEL-3:
     compute_indices:

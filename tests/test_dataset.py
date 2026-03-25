@@ -47,30 +47,3 @@ print(df)
 
 export(df, output_dir=ROOT / "data/datasets/processed", name="test_train")
 
-# ---------------------------------------------------------------------------
-# 3. Snapshot plots — default panels (RGB/SAR-RGB + NDVI) + extra indices
-# ---------------------------------------------------------------------------
-
-# Sentinel-2: RGB composite + NDVI (default) + EVI and SAVI as extras
-plot_snapshot(
-    cube_s2,
-    time="2021-07-29",
-    extra_bands=["EVI"],
-    save_path=IMAGES / "output_s2_snapshot.png",
-)
-
-# Sentinel-1: SAR-RGB composite + NDVI skipped (not available) + RVI as extra
-plot_snapshot(
-    cube_s1,
-    time="2021-07-26",
-    extra_bands=["VV", "VH", "VH_VV"],
-    save_path=IMAGES / "output_s1_snapshot.png",
-)
-
-# # Sentinel-3: LST native band + LST_C (Celsius) as extra
-# plot_snapshot(
-#     cube_s3,
-#     time="2021-10-01",
-#     extra_bands=["LST_C"],
-#     save_path=IMAGES / "output_s3_snapshot.png",
-# )
