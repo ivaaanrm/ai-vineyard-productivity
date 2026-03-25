@@ -1,15 +1,16 @@
+parcel_mask: true
+fuse_sensors: true
+
 paths:
   aoi_table: /Users/ivanr/Developer/ai-vineyard-productivity/agrixel-fair-dockerV2/data/input/aoi_table.csv
-
-
 
 # Temporal aggregation (optional)
 temporal:
   resample:
-    freq: "ME"       # pandas offset: MS=month-start, 4W=4-weeks, 2W=biweekly
+    freq: "ME"       # pandas offset: MS=month-start, 4W=4-weeks, 2W=biweekly, ME=month-end
     agg: "median"    # mean, median, min, max, sum, std
   rolling:
-    window: 4
+    window: 2
     min_periods: 1
     agg: "mean"
 
@@ -22,7 +23,7 @@ sensors:
   SENTINEL-2:
     compute_indices:
       - NDVI
-      # - EVI
+      - EVI
       # - SAVI
       # - NBR2
       # - NDWI

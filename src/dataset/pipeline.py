@@ -65,9 +65,16 @@ class DatasetPipeline:
         cube.compute_indices(self._calculators_for(sensor))
         return cube
 
-    def process(self, parcel_key: str, sensor: str) -> pd.DataFrame:
+    def process(
+        self,
+        parcel_key: str,
+        sensor: str,
+        geometry: str | None = None,
+    ) -> pd.DataFrame:
         """Return tabular stats for one parcel/sensor combination."""
         cube = self.load(parcel_key, sensor)
+        if geometry and self.config and self.config.parcel_mask:
+            cube = cube.mask(geometry)
         calculators = self._calculators_for(sensor)
         stats_extractor = ParcelStatsExtractor(
             calculators=calculators,
@@ -83,19 +90,39 @@ class DatasetPipeline:
         self,
         parcel_keys: List[str],
         sensors: List[str],
+        geometries: Dict[str, str] | None = None,
     ) -> pd.DataFrame:
         """Process multiple parcel/sensor pairs and concatenate results.
+
+        Args:
+            geometries: Optional mapping of parcel_key → WKT geometry string.
+                Used for spatial masking when ``parcel_mask`` is enabled in config.
 
         Silently skips combinations where no zarr store exists.
         """
         frames: List[pd.DataFrame] = []
         for parcel_key in tqdm(parcel_keys, desc="Computing parcels"):
+            geometry = geometries.get(parcel_key) if geometries else None
             for sensor in sensors:
                 try:
-                    frames.append(self.process(parcel_key, sensor))
+                    frames.append(self.process(parcel_key, sensor, geometry=geometry))
                 except FileNotFoundError:
                     pass
-        return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+        df = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+        if not df.empty and self.config and self.config.fuse_sensors:
+            df = self._fuse_sensors(df)
+        return df
+
+    @staticmethod
+    def _fuse_sensors(df: pd.DataFrame) -> pd.DataFrame:
+        """Collapse multiple sensor rows into one row per (parcel_key, time)."""
+        group_cols = ["parcel_id", "time"]
+        agg = {}
+        for col in df.columns:
+            if col in group_cols or col == "sensor":
+                continue
+            agg[col] = "sum" if col == "n_samples" else "first"
+        return df.groupby(group_cols, sort=False).agg(agg).reset_index()
 
 
 def make_pipeline(

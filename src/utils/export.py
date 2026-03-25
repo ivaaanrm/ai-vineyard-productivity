@@ -51,18 +51,23 @@ def export(
     df: pd.DataFrame,
     output_dir: Path | str = "data/datasets/processed",
     name: str = "dataset",
+    config=None,
 ) -> Path:
-    """Export a stats DataFrame as parquet with a companion JSON metadata file.
+    """Export a stats DataFrame as CSV with companion JSON metadata and config files.
 
-    Returns the path to the parquet file.
+    Args:
+        config: Optional Pydantic model (e.g. DatasetConfig) to dump as
+            ``{name}_config.json`` alongside the data.
+
+    Returns the path to the CSV file.
     """
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    parquet_path = output_dir / f"{name}.csv"
+    csv_path = output_dir / f"{name}.csv"
     meta_path = output_dir / f"{name}_metadata.json"
 
-    df.to_csv(parquet_path, index=False)
+    df.to_csv(csv_path, index=False)
 
     metadata: Dict[str, Any] = {"columns": {}}
     for col in df.columns:
@@ -78,4 +83,10 @@ def export(
     with open(meta_path, "w") as f:
         json.dump(metadata, f, indent=4, default=str)
 
-    return parquet_path
+    if config is not None:
+        config_path = output_dir / f"{name}_config.json"
+        dump = config.model_dump() if hasattr(config, "model_dump") else config
+        with open(config_path, "w") as f:
+            json.dump(dump, f, indent=4, default=str)
+
+    return csv_path

@@ -67,6 +67,8 @@ class DatasetConfig(BaseModel):
     stats: List[str]
     sensors: Dict[str, SensorConfig]
     temporal: TemporalConfig | None = None
+    parcel_mask: bool = False
+    fuse_sensors: bool = False
 
     @classmethod
     def from_yaml(cls, path: Path | str) -> DatasetConfig:
