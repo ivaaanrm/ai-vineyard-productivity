@@ -27,6 +27,7 @@ class SensorConfig(BaseModel):
 
 
 class DatasetConfig(BaseModel):
+    paths: Dict[str, str]
     stats: List[str]
     sensors: Dict[str, SensorConfig]
 
@@ -44,3 +45,4 @@ class DatasetConfig(BaseModel):
     def output_bands_for(self, sensor: str) -> List[str] | None:
         cfg = self.sensors.get(sensor)
         return cfg.output_bands if cfg else None
+    

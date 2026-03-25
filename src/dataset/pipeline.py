@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, List
+from tqdm import tqdm
 
 import pandas as pd
 
@@ -85,7 +86,7 @@ class DatasetPipeline:
         Silently skips combinations where no zarr store exists.
         """
         frames: List[pd.DataFrame] = []
-        for parcel_key in parcel_keys:
+        for parcel_key in tqdm(parcel_keys, desc="Computing parcels"):
             for sensor in sensors:
                 try:
                     frames.append(self.process(parcel_key, sensor))
