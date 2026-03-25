@@ -34,6 +34,7 @@ _META_COLUMNS: Dict[str, str] = {
     "time": "date",
     "parcel_key": "identifier",
     "sensor": "identifier",
+    "n_samples": "count",
 }
 
 

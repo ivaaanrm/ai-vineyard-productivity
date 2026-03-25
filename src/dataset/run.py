@@ -23,13 +23,13 @@ class DatasetProcessor:
         self.pipeline = pipeline
         self.df = df
     
-    def run(self) -> None:
+    def run(self) -> pd.DataFrame:
         parcel_ids = self.df['parcel_id'].tolist()
         df = self.pipeline.execute(
             parcel_keys=parcel_ids,
             sensors=SENSORS
         )
-        print(df)
+        return df
 
     def _available_sensors(self, base_path: str, parcel_id: str) -> List[str]:
         return [
@@ -46,7 +46,14 @@ def main():
     df = load_df(config.paths['aoi_table'])
     
     dataset = DatasetProcessor(pipeline, df)
-    dataset.run()
+    df_processed = dataset.run()
+    export(
+        df_processed, 
+        output_dir="/Users/ivanr/Developer/ai-vineyard-productivity/data/datasets/processed",
+        name="train_df_prueba"
+    )
+    
+    
             
 
 

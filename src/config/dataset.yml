@@ -3,16 +3,26 @@ paths:
 
 
 
+# Temporal aggregation (optional)
+temporal:
+  resample:
+    freq: "ME"       # pandas offset: MS=month-start, 4W=4-weeks, 2W=biweekly
+    agg: "median"    # mean, median, min, max, sum, std
+  rolling:
+    window: 4
+    min_periods: 1
+    agg: "mean"
+
 stats:
   - mean
-  # - std
+  - std
   # - median
 
 sensors:
   SENTINEL-2:
     compute_indices:
       - NDVI
-      - EVI
+      # - EVI
       # - SAVI
       # - NBR2
       # - NDWI

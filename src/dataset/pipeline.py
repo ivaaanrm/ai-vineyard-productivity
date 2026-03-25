@@ -15,7 +15,7 @@ from .sensors import (
     SENSOR_PREPROCESSORS,
     IndexCalculator,
 )
-from .stats import ParcelStatsExtractor
+from .stats import ParcelStatsExtractor, aggregate_temporal
 
 # Default calculators per sensor (used when no config is provided)
 _SENSOR_CALCULATORS: Dict[str, List[IndexCalculator]] = {
@@ -74,7 +74,10 @@ class DatasetPipeline:
             stats=self.stats,
             output_bands=self._output_bands_for(sensor),
         )
-        return stats_extractor.get_stats(cube)
+        df = stats_extractor.get_stats(cube)
+        if self.config and self.config.temporal:
+            df = aggregate_temporal(df, self.config.temporal)
+        return df
 
     def execute(
         self,
