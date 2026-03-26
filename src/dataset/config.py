@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Union
 
 import yaml
 from pydantic import BaseModel, model_validator
@@ -17,14 +17,16 @@ _ALLOWED_TEMPORAL_AGGS = {"mean", "median", "min", "max", "sum", "std"}
 
 
 class ResampleConfig(BaseModel):
-    freq: str
-    agg: str = "median"
+    freq: str | None = None
+    agg: Union[str, List[str]] = "median"
 
     @model_validator(mode="after")
     def _check_agg(self) -> ResampleConfig:
-        if self.agg not in _ALLOWED_TEMPORAL_AGGS:
+        aggs = [self.agg] if isinstance(self.agg, str) else self.agg
+        unknown = set(aggs) - _ALLOWED_TEMPORAL_AGGS
+        if unknown:
             raise ValueError(
-                f"Unknown agg '{self.agg}'. Allowed: {_ALLOWED_TEMPORAL_AGGS}"
+                f"Unknown agg(s): {unknown}. Allowed: {_ALLOWED_TEMPORAL_AGGS}"
             )
         return self
 
@@ -51,6 +53,8 @@ class TemporalConfig(BaseModel):
 class SensorConfig(BaseModel):
     compute_indices: List[str]
     output_bands: List[str]
+    stats: List[str] | None = None  # Override global stats for this sensor
+    temporal: TemporalConfig | None = None  # Override global temporal for this sensor
 
     @model_validator(mode="after")
     def _check_known_indices(self) -> SensorConfig:
@@ -86,3 +90,30 @@ class DatasetConfig(BaseModel):
     def output_bands_for(self, sensor: str) -> List[str] | None:
         cfg = self.sensors.get(sensor)
         return cfg.output_bands if cfg else None
+
+    def stats_for(self, sensor: str) -> List[str]:
+        """Return spatial stats for a sensor (per-sensor override or global)."""
+        cfg = self.sensors.get(sensor)
+        if cfg and cfg.stats is not None:
+            return cfg.stats
+        return self.stats
+
+    def temporal_for(self, sensor: str) -> TemporalConfig | None:
+        """Return temporal config for a sensor (per-sensor override merged with global)."""
+        cfg = self.sensors.get(sensor)
+        sensor_temporal = cfg.temporal if cfg else None
+
+        if sensor_temporal is None:
+            return self.temporal
+        if self.temporal is None:
+            return sensor_temporal
+
+        # Merge: inherit global freq when sensor doesn't specify its own
+        merged = sensor_temporal.model_copy(deep=True)
+        if (
+            merged.resample
+            and merged.resample.freq is None
+            and self.temporal.resample
+        ):
+            merged.resample.freq = self.temporal.resample.freq
+        return merged
