@@ -136,15 +136,24 @@ class SampleLoaderProtocol(Protocol):
 class ZarrBandLoader:
     """Adapter that reads cube.zarr stores from the agrixel output directory structure.
 
-    Expected layout: {base_path}/{SENSOR}/{parcel_key}/cube.zarr
+    Expected layout:
+      - {base_path}/{SENSOR}/{parcel_key}/cube.zarr          (single cube)
+      - {base_path}/{SENSOR}/{parcel_key}/*/cube.zarr         (split cubes, e.g. ERA5)
     """
 
     def __init__(self, base_path: Path | str) -> None:
         self.base_path = Path(base_path)
 
     def load(self, parcel_key: str, sensor: str) -> SampleCube:
-        zarr_path = self.base_path / sensor / parcel_key / "cube.zarr"
-        if not zarr_path.exists():
+        parcel_dir = self.base_path / sensor / parcel_key
+        zarr_path = parcel_dir / "cube.zarr"
+        if zarr_path.exists():
+            ds = xr.open_zarr(str(zarr_path), consolidated=False)
+            return SampleCube(ds, sensor=sensor, parcel_key=parcel_key)
+        # Fallback: look for split cubes in subdirectories (e.g. ERA5 time windows)
+        sub_zarrs = sorted(parcel_dir.glob("*/cube.zarr"))
+        if not sub_zarrs:
             raise FileNotFoundError(f"Zarr store not found: {zarr_path}")
-        ds = xr.open_zarr(str(zarr_path), consolidated=False)
+        datasets = [xr.open_zarr(str(p), consolidated=False) for p in sub_zarrs]
+        ds = xr.concat(datasets, dim="time")
         return SampleCube(ds, sensor=sensor, parcel_key=parcel_key)

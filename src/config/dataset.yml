@@ -55,3 +55,18 @@ sensors:
     output_bands:
       - LST
       - LST_C
+
+  ERA5:
+    compute_indices:
+      - TP_MM
+    output_bands:
+      - tp
+      - TP_MM
+
+  MODIS:
+    compute_indices:
+      - ET_RATIO
+    output_bands:
+      - ET_500m
+      - PET_500m
+      - ET_RATIO

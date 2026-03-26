@@ -15,7 +15,7 @@ from src.visual.visualizer import plot_snapshot
 IMAGES = ROOT / "images/dataset"
 BASE = str(ROOT / "agrixel-fair-dockerV2/data/output/files")
 CONFIG = str(ROOT / "src/config/dataset.yml")
-SENSORS = ["SENTINEL-2", "SENTINEL-1"]
+SENSORS = ["SENTINEL-2", "SENTINEL-1", "SENTINEL-3", "ERA5", "MODIS"]
 
 
 class DatasetProcessor:
