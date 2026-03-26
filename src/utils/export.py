@@ -30,7 +30,7 @@ _BAND_UNITS: Dict[str, str] = {
     "LST_C": "°C",
     # ERA5
     "tp": "m",
-    "TP_MM": "mm",
+    "TP_MM": "mm/period",
     # MODIS
     "ET_500m": "mm/day",
     "PET_500m": "mm/day",

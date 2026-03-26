@@ -11,6 +11,7 @@ from .sentinel1.indices import preprocess_sar
 from .sentinel2 import S2_CALCULATORS
 from .sentinel3 import S3_CALCULATORS
 from .era5 import ERA5_CALCULATORS
+from .era5.indices import preprocess_era5
 from .modis import MODIS_CALCULATORS
 
 ALL_CALCULATORS = S2_CALCULATORS + S1_CALCULATORS + S3_CALCULATORS + ERA5_CALCULATORS + MODIS_CALCULATORS
@@ -19,4 +20,5 @@ ALL_CALCULATORS = S2_CALCULATORS + S1_CALCULATORS + S3_CALCULATORS + ERA5_CALCUL
 # Add an entry here when a new sensor requires calibration or filtering.
 SENSOR_PREPROCESSORS: Dict[str, Callable] = {
     "SENTINEL-1": preprocess_sar,
+    # "ERA5": preprocess_era5,
 }
