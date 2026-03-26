@@ -2,6 +2,9 @@
 
 Research project for a TFM (Trabajo Fin de Máster) on vineyard productivity analysis using multi-sensor satellite imagery. The pipeline ingests Sentinel-1, Sentinel-2, and Sentinel-3 data stored as Zarr cubes, computes spectral and radar indices, and extracts per-parcel temporal statistics for yield modeling.
 
+![Dataset Pipeline](images/dataset_pipeline.png)
+
+
 ## Overview
 ![Sentinel-2 temporal evolution](images/dataset/P_L62196_2020-2024.png)
 ![Sentinel-2 temporal evolution](images/dataset/mosaic_20210726.png)

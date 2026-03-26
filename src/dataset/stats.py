@@ -75,6 +75,7 @@ class ParcelStatsExtractor:
             layers = {k: v for k, v in layers.items() if k in self.output_bands}
 
         stat_fns = {s: STAT_FNS[s] for s in self.stats}
+        single_stat = len(stat_fns) == 1
         records: List[Dict[str, Any]] = []
 
         for t_idx, t in enumerate(cube.times):
@@ -87,7 +88,7 @@ class ParcelStatsExtractor:
                 values = da.isel(time=t_idx).values.ravel()
                 valid = values[np.isfinite(values)]
                 for stat_name, fn in stat_fns.items():
-                    col = f"{layer_name}_{stat_name}"
+                    col = layer_name if single_stat else f"{layer_name}_{stat_name}"
                     row[col] = float(fn(valid)) if len(valid) > 0 else np.nan
             records.append(row)
 
@@ -114,13 +115,24 @@ def aggregate_temporal(df: pd.DataFrame, config: TemporalConfig) -> pd.DataFrame
         ts = ts.set_index("time").sort_index()
 
         if config.resample is not None:
+            resampler = ts[numeric_cols].resample(config.resample.freq)
             n_samples = ts[numeric_cols[0]].resample(config.resample.freq).count()
-            ts = (
-                ts[numeric_cols].resample(config.resample.freq).agg(config.resample.agg)
-            )
+            aggs = config.resample.agg
+            if isinstance(aggs, list):
+                # Multiple aggs → produce {col}_{agg} columns for each
+                parts = []
+                for a in aggs:
+                    part = resampler.agg(a)
+                    part = part.rename(columns={c: f"{c}_{a}" for c in numeric_cols})
+                    parts.append(part)
+                ts = pd.concat(parts, axis=1)
+                numeric_cols_new = [c for c in ts.columns]
+            else:
+                ts = resampler.agg(aggs)
+                numeric_cols_new = numeric_cols
             ts["n_samples"] = n_samples
             # Drop periods with no original observations
-            ts = ts.dropna(subset=numeric_cols, how="all")
+            ts = ts.dropna(subset=numeric_cols_new, how="all")
 
         if config.rolling is not None:
             roll_cols = [c for c in numeric_cols if c in ts.columns]

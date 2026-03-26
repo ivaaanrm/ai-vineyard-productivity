@@ -12,6 +12,8 @@ from .sensors import (
     S1_CALCULATORS,
     S2_CALCULATORS,
     S3_CALCULATORS,
+    ERA5_CALCULATORS,
+    MODIS_CALCULATORS,
     SENSOR_PREPROCESSORS,
     IndexCalculator,
 )
@@ -22,6 +24,8 @@ _SENSOR_CALCULATORS: Dict[str, List[IndexCalculator]] = {
     "SENTINEL-2": S2_CALCULATORS,
     "SENTINEL-1": S1_CALCULATORS,
     "SENTINEL-3": S3_CALCULATORS,
+    "ERA5": ERA5_CALCULATORS,
+    "MODIS": MODIS_CALCULATORS,
 }
 
 
@@ -65,6 +69,11 @@ class DatasetPipeline:
         cube.compute_indices(self._calculators_for(sensor))
         return cube
 
+    def _stats_for(self, sensor: str) -> List[str]:
+        if self.config:
+            return self.config.stats_for(sensor)
+        return self.stats
+
     def process(
         self,
         parcel_key: str,
@@ -76,14 +85,16 @@ class DatasetPipeline:
         if geometry and self.config and self.config.parcel_mask:
             cube = cube.mask(geometry)
         calculators = self._calculators_for(sensor)
+        sensor_stats = self._stats_for(sensor)
         stats_extractor = ParcelStatsExtractor(
             calculators=calculators,
-            stats=self.stats,
+            stats=sensor_stats,
             output_bands=self._output_bands_for(sensor),
         )
         df = stats_extractor.get_stats(cube)
-        if self.config and self.config.temporal:
-            df = aggregate_temporal(df, self.config.temporal)
+        temporal_cfg = self.config.temporal_for(sensor) if self.config else None
+        if temporal_cfg:
+            df = aggregate_temporal(df, temporal_cfg)
         return df
 
     def execute(

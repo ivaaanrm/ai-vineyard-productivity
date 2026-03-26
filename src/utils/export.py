@@ -28,6 +28,15 @@ _BAND_UNITS: Dict[str, str] = {
     # Sentinel-3
     "LST": "K",
     "LST_C": "°C",
+    # ERA5
+    "tp": "m",
+    "TP_MM": "mm/period",
+    # MODIS
+    "ET_500m": "mm/day",
+    "PET_500m": "mm/day",
+    "LE_500m": "J/m²/day",
+    "PLE_500m": "J/m²/day",
+    "ET_RATIO": "dimensionless",
 }
 
 _META_COLUMNS: Dict[str, str] = {
