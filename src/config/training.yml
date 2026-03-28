@@ -1,0 +1,30 @@
+dry_run: true
+features_csv: experiments/PRUEBA00/data/features.csv
+targets:
+  - yield_kg_ha
+  # - alcohol_degree
+
+split_column: split      # use existing train/val/test split; null → random split
+test_size: 0.2           # fallback if no split column
+random_state: 42
+experiments_dir: experiments
+
+models:
+  random_forest:
+    enabled: true
+    params:
+      n_estimators: 200
+      max_depth: 12
+      min_samples_split: 5
+      min_samples_leaf: 2
+      random_state: 42
+
+  xgboost:
+    enabled: false
+    params:
+      n_estimators: 200
+      max_depth: 6
+      learning_rate: 0.1
+      subsample: 0.8
+      colsample_bytree: 0.8
+      random_state: 42

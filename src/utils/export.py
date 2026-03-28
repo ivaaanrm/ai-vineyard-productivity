@@ -81,7 +81,7 @@ def export(
     metadata: Dict[str, Any] = {"columns": {}}
     for col in df.columns:
         info: Dict[str, Any] = {"unit": _unit_for_column(col)}
-        if pd.api.types.is_numeric_dtype(df[col]):
+        if pd.api.types.is_numeric_dtype(df[col]) and not df.empty:
             info["min"] = float(np.nanmin(df[col]))
             info["max"] = float(np.nanmax(df[col]))
         else:

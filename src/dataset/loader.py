@@ -4,9 +4,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING, List, Protocol
 
 import numpy as np
+import rioxarray  # noqa: F401 (registers .rio accessor)
+from shapely import wkt
+
 import xarray as xr
-from rasterio.features import geometry_mask
-from rasterio.transform import Affine
+
+from .temporal import resample_cube, rolling_cube
 
 if TYPE_CHECKING:
     from .sensors import IndexCalculator
@@ -68,41 +71,76 @@ class SampleCube:
     def mask(self, geometry) -> "SampleCube":
         """Return a new SampleCube with pixels outside *geometry* set to NaN.
 
-        Args:
-            geometry: A WKT string (``"POLYGON ((...))"``) or a Shapely
-                      geometry in the same CRS as the cube.  Anything that
-                      implements ``__geo_interface__`` is also accepted
-                      (e.g. a GeoDataFrame row's geometry).
+        Both the cube and geometry are expected to share the same CRS
+        (EPSG:3857 as produced by the agrixel pipeline).
 
-        Returns:
-            A new SampleCube; the original is not modified.
+        When the geometry falls outside the cube extent (common for
+        coarse-resolution sensors like S3 / ERA5 / MODIS), the nearest
+        pixel to the geometry centroid is kept instead.
         """
         if isinstance(geometry, str):
-            from shapely import wkt
             geometry = wkt.loads(geometry)
-        x = self._ds.coords["x"].values
-        y = self._ds.coords["y"].values
-        dx = float(x[1] - x[0])
-        dy = float(y[1] - y[0])  # negative when y runs north→south
 
-        # Build affine so pixel (col=0, row=0) centres on (x[0], y[0])
-        transform = Affine(dx, 0.0, float(x[0]) - dx / 2,
-                           0.0, dy, float(y[0]) - dy / 2)
+        ds = self._ds
+        ds = ds.rio.write_crs("EPSG:3857")
+        ds = ds.rio.set_spatial_dims(x_dim="x", y_dim="y")
 
-        valid = geometry_mask(
-            [geometry],
-            out_shape=(len(y), len(x)),
-            transform=transform,
-            invert=True,  # True = inside polygon (keep), False = outside (mask)
-        )
-        valid_da = xr.DataArray(valid, dims=["y", "x"],
-                                coords={"y": y, "x": x})
-        return SampleCube(self._ds.where(valid_da),
-                          sensor=self.sensor, parcel_key=self.parcel_key)
+        # Buffer by one pixel so small parcels aren't clipped to nothing
+        x_res = abs(float(ds.coords["x"][1] - ds.coords["x"][0]))
+        buffered = geometry.buffer(x_res)
+
+        # Try clipping; fall back to nearest pixel if geometry doesn't
+        # intersect the cube (e.g. coarse-resolution sensors).
+        clipped = None
+        try:
+            clipped = ds.rio.clip(
+                [buffered], crs="EPSG:3857", drop=False, all_touched=True
+            )
+        except Exception:
+            pass
+
+        if clipped is None or bool(clipped.to_array().isnull().all()):
+            x = ds.coords["x"].values
+            y = ds.coords["y"].values
+            cx, cy = geometry.centroid.x, geometry.centroid.y
+            ix = int((abs(x - cx)).argmin())
+            iy = int((abs(y - cy)).argmin())
+            mask_arr = xr.zeros_like(
+                ds[list(ds.data_vars)[0]].isel(time=0), dtype=bool
+            )
+            mask_arr[iy, ix] = True
+            clipped = ds.where(mask_arr)
+
+        return SampleCube(clipped, sensor=self.sensor, parcel_key=self.parcel_key)
 
     def replace_band(self, name: str, new_da: xr.DataArray) -> None:
         """Replace an existing band's data in place."""
         self._ds[name] = new_da
+
+    def composite_temporal(self, config) -> "SampleCube":
+        """Return a new SampleCube with temporal compositing applied.
+
+        Args:
+            config: A :class:`TemporalConfig` with resample and/or rolling settings.
+
+        Returns:
+            A new SampleCube (the original is not modified).
+        """
+
+        ds = self._ds
+        if config.resample is not None:
+            # Cube-level compositing uses a single aggregation per variable;
+            # list aggs (e.g. [sum] for ERA5) are normalised to a string so
+            # that band names are preserved for downstream index computation.
+            agg = config.resample.agg
+            if isinstance(agg, list):
+                agg = agg[0]
+            ds = resample_cube(ds, config.resample.freq, agg)
+        if config.rolling is not None:
+            ds = rolling_cube(
+                ds, config.rolling.window, config.rolling.min_periods, config.rolling.agg
+            )
+        return SampleCube(ds, sensor=self.sensor, parcel_key=self.parcel_key)
 
     def compute_indices(self, calculators: List[IndexCalculator]) -> None:
         """Compute indices and append them as new data variables. Mutates in place.
@@ -111,7 +149,7 @@ class SampleCube:
         name already exists as a variable.
         """
         for calc in calculators:
-            if calc.name in self._ds.data_vars:
+            if calc.name in self._ds.data_vars and not self._ds[calc.name].isnull().all():
                 continue
             if not calc.supports(self):
                 continue
@@ -156,4 +194,8 @@ class ZarrBandLoader:
             raise FileNotFoundError(f"Zarr store not found: {zarr_path}")
         datasets = [xr.open_zarr(str(p), consolidated=False) for p in sub_zarrs]
         ds = xr.concat(datasets, dim="time")
+        # Drop duplicate timestamps from overlapping split cubes
+        _, unique_idx = np.unique(ds.time.values, return_index=True)
+        if len(unique_idx) < ds.sizes["time"]:
+            ds = ds.isel(time=np.sort(unique_idx))
         return SampleCube(ds, sensor=sensor, parcel_key=parcel_key)

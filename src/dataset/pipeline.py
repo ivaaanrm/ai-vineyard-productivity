@@ -15,9 +15,10 @@ from .sensors import (
     ERA5_CALCULATORS,
     MODIS_CALCULATORS,
     SENSOR_PREPROCESSORS,
+    SENSOR_POSTPROCESSORS,
     IndexCalculator,
 )
-from .stats import ParcelStatsExtractor, aggregate_temporal
+from .stats import ParcelStatsExtractor
 
 # Default calculators per sensor (used when no config is provided)
 _SENSOR_CALCULATORS: Dict[str, List[IndexCalculator]] = {
@@ -30,7 +31,11 @@ _SENSOR_CALCULATORS: Dict[str, List[IndexCalculator]] = {
 
 
 class DatasetPipeline:
-    """Orchestrates loading, index computation, and spatial reduction.
+    """Orchestrates loading, temporal compositing, index computation, and
+    spatial reduction.
+
+    Pipeline order:
+        Raw → Preprocess → Mask → Resample → Rolling → Indices → (Post) → Stats
 
     Args:
         loader: Any object satisfying SampleLoaderProtocol.
@@ -61,12 +66,23 @@ class DatasetPipeline:
         return None
 
     def load(self, parcel_key: str, sensor: str):
-        """Load a SampleCube with all applicable indices already computed."""
+        """Load a SampleCube with sensor preprocessing applied (no indices)."""
         cube = self.loader.load(parcel_key, sensor)
         preprocessor = SENSOR_PREPROCESSORS.get(sensor)
         if preprocessor:
             preprocessor(cube)
+        return cube
+
+    def load_with_indices(self, parcel_key: str, sensor: str):
+        """Load a SampleCube with preprocessing and indices computed.
+
+        Convenience method for exploratory / notebook use.
+        """
+        cube = self.load(parcel_key, sensor)
         cube.compute_indices(self._calculators_for(sensor))
+        postprocessor = SENSOR_POSTPROCESSORS.get(sensor)
+        if postprocessor:
+            postprocessor(cube)
         return cube
 
     def _stats_for(self, sensor: str) -> List[str]:
@@ -80,22 +96,37 @@ class DatasetPipeline:
         sensor: str,
         geometry: str | None = None,
     ) -> pd.DataFrame:
-        """Return tabular stats for one parcel/sensor combination."""
+        """Return tabular stats for one parcel/sensor combination.
+
+        Pipeline: load → preprocess → mask → temporal composite → indices
+                  → (postprocess) → spatial stats
+        """
         cube = self.load(parcel_key, sensor)
+
+        # Mask before temporal compositing (exclude non-parcel pixels)
         if geometry and self.config and self.config.parcel_mask:
             cube = cube.mask(geometry)
-        calculators = self._calculators_for(sensor)
+
+        # Temporal compositing on raw bands (cube level)
+        temporal_cfg = self.config.temporal_for(sensor) if self.config else None
+        if temporal_cfg:
+            cube = cube.composite_temporal(temporal_cfg)
+
+        # Compute indices on composited bands
+        cube.compute_indices(self._calculators_for(sensor))
+
+        # Sensor-specific postprocessing (e.g. S1 dB conversion)
+        postprocessor = SENSOR_POSTPROCESSORS.get(sensor)
+        if postprocessor:
+            postprocessor(cube)
+
+        # Spatial statistics
         sensor_stats = self._stats_for(sensor)
         stats_extractor = ParcelStatsExtractor(
-            calculators=calculators,
             stats=sensor_stats,
             output_bands=self._output_bands_for(sensor),
         )
-        df = stats_extractor.get_stats(cube)
-        temporal_cfg = self.config.temporal_for(sensor) if self.config else None
-        if temporal_cfg:
-            df = aggregate_temporal(df, temporal_cfg)
-        return df
+        return stats_extractor.get_stats(cube)
 
     def execute(
         self,
@@ -119,6 +150,7 @@ class DatasetPipeline:
                     frames.append(self.process(parcel_key, sensor, geometry=geometry))
                 except FileNotFoundError:
                     pass
+                
         df = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
         if not df.empty and self.config and self.config.fuse_sensors:
             df = self._fuse_sensors(df)

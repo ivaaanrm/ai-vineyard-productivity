@@ -15,7 +15,13 @@ from src.visual.visualizer import plot_snapshot
 IMAGES = ROOT / "images/dataset"
 BASE = str(ROOT / "agrixel-fair-dockerV2/data/output/files")
 CONFIG = str(ROOT / "src/config/dataset.yml")
-SENSORS = ["SENTINEL-2", "SENTINEL-1", "SENTINEL-3", "ERA5", "MODIS"]
+SENSORS = [
+    "SENTINEL-2", 
+    "SENTINEL-1", 
+    # "SENTINEL-3", 
+    # "ERA5", 
+    # "MODIS"
+]
 
 
 class DatasetProcessor:
@@ -57,6 +63,7 @@ def main():
     dataset = DatasetProcessor(pipeline, df)
     df_processed = dataset.run()
     print(df_processed)
+    
     export(
         df_processed,
         output_dir="/Users/ivanr/Developer/ai-vineyard-productivity/experiments/PRUEBA00/data",

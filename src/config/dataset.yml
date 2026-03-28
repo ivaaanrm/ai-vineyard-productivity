@@ -29,7 +29,7 @@ sensors:
       # - NDWI
     output_bands:
       - NDVI
-      - EVI
+      # - EVI
       # - SAVI
       # - NBR2
       # - NDWI
@@ -46,14 +46,14 @@ sensors:
       # - VV
       # - VH
       - RVI
-      - VH_VV
+      # - VH_VV
       # - DpRVI
 
   SENTINEL-3:
     compute_indices:
       - LST_C
     output_bands:
-      - LST
+      # - LST
       - LST_C
 
   ERA5:
