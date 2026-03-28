@@ -1,0 +1,35 @@
+"""Training pipeline configuration — load from YAML."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any, Dict, List
+
+import yaml
+from pydantic import BaseModel
+
+
+class ModelConfig(BaseModel):
+    """Configuration for a single model type."""
+
+    enabled: bool = True
+    params: Dict[str, Any] = {}
+
+
+class TrainingConfig(BaseModel):
+    """Top-level training config."""
+
+    features_csv: str
+    targets: List[str] = ["yield_kg_ha", "alcohol_degree"]
+    split_column: str | None = "split"
+    test_size: float = 0.2
+    random_state: int = 42
+    experiments_dir: str = "experiments"
+    dry_run: bool = False
+    models: Dict[str, ModelConfig] = {}
+
+    @classmethod
+    def from_yaml(cls, path: Path | str) -> TrainingConfig:
+        with open(path) as f:
+            raw = yaml.safe_load(f)
+        return cls.model_validate(raw)
