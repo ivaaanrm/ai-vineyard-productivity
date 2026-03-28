@@ -42,19 +42,41 @@ def to_db(da: xr.DataArray, eps: float = 1e-10) -> xr.DataArray:
     return 10 * np.log10(da.clip(min=eps))
 
 
-def preprocess_sar(cube: SampleCube) -> None:
-    """SAR preprocessing: DN → σ₀ → speckle filter → indices (linear) → dB."""
+def preprocess_s1(cube: SampleCube) -> None:
+    """S1 preprocessing: speckle filter on linear-scale sigma0.
+
+    Planetary Computer's sentinel-1-grd collection provides RTC
+    gamma-nought in linear power, so DN→σ₀ calibration is NOT needed.
+    """
     if not (cube.has_band("VV") and cube.has_band("VH")):
         return
-    # 1. Calibrate: DN → sigma0 linear (σ₀ = DN² / 1e9)
-    for band in ("VV", "VH"):
-        cube.replace_band(band, dn_to_sigma0(cube.band(band)))
-    # 2. Speckle filter on linear-scale sigma0
     for band in ("VV", "VH"):
         cube.replace_band(band, median_speckle_filter(cube.band(band)))
-    # 3. All SAR indices require linear-scale bands — compute before dB conversion
+
+
+def postprocess_s1_to_db(cube: SampleCube) -> None:
+    """Convert S1 VV/VH bands from linear power to decibels.
+
+    Must be called AFTER index computation (indices require linear scale).
+    """
+    for band in ("VV", "VH"):
+        if cube.has_band(band):
+            cube.replace_band(band, to_db(cube.band(band)))
+
+
+# Deprecated — kept for reference. Use preprocess_s1 + postprocess_s1_to_db.
+def preprocess_sar(cube: SampleCube) -> None:
+    """SAR preprocessing: DN → σ₀ → speckle filter → indices (linear) → dB.
+
+    .. deprecated:: Use :func:`preprocess_s1` + :func:`postprocess_s1_to_db`.
+    """
+    if not (cube.has_band("VV") and cube.has_band("VH")):
+        return
+    for band in ("VV", "VH"):
+        cube.replace_band(band, dn_to_sigma0(cube.band(band)))
+    for band in ("VV", "VH"):
+        cube.replace_band(band, median_speckle_filter(cube.band(band)))
     cube.compute_indices(S1_CALCULATORS)
-    # 4. Convert VV / VH to decibels
     for band in ("VV", "VH"):
         cube.replace_band(band, to_db(cube.band(band)))
 

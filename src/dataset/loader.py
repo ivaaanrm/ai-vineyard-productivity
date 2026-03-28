@@ -104,6 +104,32 @@ class SampleCube:
         """Replace an existing band's data in place."""
         self._ds[name] = new_da
 
+    def composite_temporal(self, config) -> "SampleCube":
+        """Return a new SampleCube with temporal compositing applied.
+
+        Args:
+            config: A :class:`TemporalConfig` with resample and/or rolling settings.
+
+        Returns:
+            A new SampleCube (the original is not modified).
+        """
+        from .temporal import resample_cube, rolling_cube
+
+        ds = self._ds
+        if config.resample is not None:
+            # Cube-level compositing uses a single aggregation per variable;
+            # list aggs (e.g. [sum] for ERA5) are normalised to a string so
+            # that band names are preserved for downstream index computation.
+            agg = config.resample.agg
+            if isinstance(agg, list):
+                agg = agg[0]
+            ds = resample_cube(ds, config.resample.freq, agg)
+        if config.rolling is not None:
+            ds = rolling_cube(
+                ds, config.rolling.window, config.rolling.min_periods, config.rolling.agg
+            )
+        return SampleCube(ds, sensor=self.sensor, parcel_key=self.parcel_key)
+
     def compute_indices(self, calculators: List[IndexCalculator]) -> None:
         """Compute indices and append them as new data variables. Mutates in place.
 
@@ -111,7 +137,7 @@ class SampleCube:
         name already exists as a variable.
         """
         for calc in calculators:
-            if calc.name in self._ds.data_vars:
+            if calc.name in self._ds.data_vars and not self._ds[calc.name].isnull().all():
                 continue
             if not calc.supports(self):
                 continue
@@ -156,4 +182,8 @@ class ZarrBandLoader:
             raise FileNotFoundError(f"Zarr store not found: {zarr_path}")
         datasets = [xr.open_zarr(str(p), consolidated=False) for p in sub_zarrs]
         ds = xr.concat(datasets, dim="time")
+        # Drop duplicate timestamps from overlapping split cubes
+        _, unique_idx = np.unique(ds.time.values, return_index=True)
+        if len(unique_idx) < ds.sizes["time"]:
+            ds = ds.isel(time=np.sort(unique_idx))
         return SampleCube(ds, sensor=sensor, parcel_key=parcel_key)

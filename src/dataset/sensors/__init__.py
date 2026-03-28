@@ -7,7 +7,7 @@ from .era5 import *  # noqa: F403
 from .modis import *  # noqa: F403
 
 from .sentinel1 import S1_CALCULATORS
-from .sentinel1.indices import preprocess_sar
+from .sentinel1.indices import preprocess_s1, postprocess_s1_to_db
 from .sentinel2 import S2_CALCULATORS
 from .sentinel3 import S3_CALCULATORS
 from .era5 import ERA5_CALCULATORS
@@ -19,6 +19,11 @@ ALL_CALCULATORS = S2_CALCULATORS + S1_CALCULATORS + S3_CALCULATORS + ERA5_CALCUL
 # Sensor name → preprocessing function applied before index computation.
 # Add an entry here when a new sensor requires calibration or filtering.
 SENSOR_PREPROCESSORS: Dict[str, Callable] = {
-    "SENTINEL-1": preprocess_sar,
-    # "ERA5": preprocess_era5,
+    "SENTINEL-1": preprocess_s1,
+    "ERA5": preprocess_era5,
+}
+
+# Sensor name → postprocessing function applied after index computation.
+SENSOR_POSTPROCESSORS: Dict[str, Callable] = {
+    "SENTINEL-1": postprocess_s1_to_db,
 }
