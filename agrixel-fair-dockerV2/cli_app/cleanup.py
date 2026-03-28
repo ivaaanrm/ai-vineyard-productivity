@@ -6,11 +6,11 @@ import shutil
 from pathlib import Path
 
 
-def cleanup_sensor(sensor_files_dir: Path) -> dict:
-    """Remove everything except cube.zarr inside each parcel subdirectory.
+def cleanup_parcel_dir(parcel_dir: Path) -> dict:
+    """Remove everything except cube.zarr inside a single parcel directory.
 
     Args:
-        sensor_files_dir: e.g. data/output/files/SENTINEL-2
+        parcel_dir: e.g. data/output/files/SENTINEL-2/L62196
 
     Returns:
         Stats dict with files_removed, dirs_removed, zarr_kept counts.
@@ -19,25 +19,21 @@ def cleanup_sensor(sensor_files_dir: Path) -> dict:
     dirs_removed = 0
     zarr_kept = 0
 
-    for parcel_dir in sorted(sensor_files_dir.iterdir()):
-        if not parcel_dir.is_dir():
+    if not parcel_dir.is_dir():
+        return {"files_removed": 0, "dirs_removed": 0, "zarr_kept": 0}
+
+    if (parcel_dir / "cube.zarr").is_dir():
+        zarr_kept = 1
+
+    for item in sorted(parcel_dir.iterdir()):
+        if item.name == "cube.zarr":
             continue
-
-        zarr_path = parcel_dir / "cube.zarr"
-        has_zarr = zarr_path.is_dir()
-
-        if has_zarr:
-            zarr_kept += 1
-
-        for item in sorted(parcel_dir.iterdir()):
-            if item.name == "cube.zarr":
-                continue
-            if item.is_dir():
-                shutil.rmtree(item)
-                dirs_removed += 1
-            else:
-                item.unlink()
-                files_removed += 1
+        if item.is_dir():
+            shutil.rmtree(item)
+            dirs_removed += 1
+        else:
+            item.unlink()
+            files_removed += 1
 
     return {
         "files_removed": files_removed,
