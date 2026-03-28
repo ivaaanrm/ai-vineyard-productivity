@@ -4,9 +4,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING, List, Protocol
 
 import numpy as np
+import rioxarray  # noqa: F401 (registers .rio accessor)
+from shapely import wkt
+
 import xarray as xr
-from rasterio.features import geometry_mask
-from rasterio.transform import Affine
+
+from .temporal import resample_cube, rolling_cube
 
 if TYPE_CHECKING:
     from .sensors import IndexCalculator
@@ -68,37 +71,47 @@ class SampleCube:
     def mask(self, geometry) -> "SampleCube":
         """Return a new SampleCube with pixels outside *geometry* set to NaN.
 
-        Args:
-            geometry: A WKT string (``"POLYGON ((...))"``) or a Shapely
-                      geometry in the same CRS as the cube.  Anything that
-                      implements ``__geo_interface__`` is also accepted
-                      (e.g. a GeoDataFrame row's geometry).
+        Both the cube and geometry are expected to share the same CRS
+        (EPSG:3857 as produced by the agrixel pipeline).
 
-        Returns:
-            A new SampleCube; the original is not modified.
+        When the geometry falls outside the cube extent (common for
+        coarse-resolution sensors like S3 / ERA5 / MODIS), the nearest
+        pixel to the geometry centroid is kept instead.
         """
         if isinstance(geometry, str):
-            from shapely import wkt
             geometry = wkt.loads(geometry)
-        x = self._ds.coords["x"].values
-        y = self._ds.coords["y"].values
-        dx = float(x[1] - x[0])
-        dy = float(y[1] - y[0])  # negative when y runs north→south
 
-        # Build affine so pixel (col=0, row=0) centres on (x[0], y[0])
-        transform = Affine(dx, 0.0, float(x[0]) - dx / 2,
-                           0.0, dy, float(y[0]) - dy / 2)
+        ds = self._ds
+        ds = ds.rio.write_crs("EPSG:3857")
+        ds = ds.rio.set_spatial_dims(x_dim="x", y_dim="y")
 
-        valid = geometry_mask(
-            [geometry],
-            out_shape=(len(y), len(x)),
-            transform=transform,
-            invert=True,  # True = inside polygon (keep), False = outside (mask)
-        )
-        valid_da = xr.DataArray(valid, dims=["y", "x"],
-                                coords={"y": y, "x": x})
-        return SampleCube(self._ds.where(valid_da),
-                          sensor=self.sensor, parcel_key=self.parcel_key)
+        # Buffer by one pixel so small parcels aren't clipped to nothing
+        x_res = abs(float(ds.coords["x"][1] - ds.coords["x"][0]))
+        buffered = geometry.buffer(x_res)
+
+        # Try clipping; fall back to nearest pixel if geometry doesn't
+        # intersect the cube (e.g. coarse-resolution sensors).
+        clipped = None
+        try:
+            clipped = ds.rio.clip(
+                [buffered], crs="EPSG:3857", drop=False, all_touched=True
+            )
+        except Exception:
+            pass
+
+        if clipped is None or bool(clipped.to_array().isnull().all()):
+            x = ds.coords["x"].values
+            y = ds.coords["y"].values
+            cx, cy = geometry.centroid.x, geometry.centroid.y
+            ix = int((abs(x - cx)).argmin())
+            iy = int((abs(y - cy)).argmin())
+            mask_arr = xr.zeros_like(
+                ds[list(ds.data_vars)[0]].isel(time=0), dtype=bool
+            )
+            mask_arr[iy, ix] = True
+            clipped = ds.where(mask_arr)
+
+        return SampleCube(clipped, sensor=self.sensor, parcel_key=self.parcel_key)
 
     def replace_band(self, name: str, new_da: xr.DataArray) -> None:
         """Replace an existing band's data in place."""
@@ -113,7 +126,6 @@ class SampleCube:
         Returns:
             A new SampleCube (the original is not modified).
         """
-        from .temporal import resample_cube, rolling_cube
 
         ds = self._ds
         if config.resample is not None:

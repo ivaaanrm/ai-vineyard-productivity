@@ -150,6 +150,7 @@ class DatasetPipeline:
                     frames.append(self.process(parcel_key, sensor, geometry=geometry))
                 except FileNotFoundError:
                     pass
+                
         df = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
         if not df.empty and self.config and self.config.fuse_sensors:
             df = self._fuse_sensors(df)

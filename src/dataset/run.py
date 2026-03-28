@@ -18,9 +18,9 @@ CONFIG = str(ROOT / "src/config/dataset.yml")
 SENSORS = [
     "SENTINEL-2", 
     "SENTINEL-1", 
-    "SENTINEL-3", 
-    "ERA5", 
-    "MODIS"
+    # "SENTINEL-3", 
+    # "ERA5", 
+    # "MODIS"
 ]
 
 
@@ -62,8 +62,7 @@ def main():
 
     dataset = DatasetProcessor(pipeline, df)
     df_processed = dataset.run()
-    df_processed["time"] = pd.to_datetime(df_processed["time"])
-    print(df_processed[df_processed.time.dt.year < 2022])
+    print(df_processed)
     
     export(
         df_processed,
