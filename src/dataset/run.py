@@ -28,7 +28,7 @@ class DatasetProcessor:
         self.df = df
 
     def run(self) -> pd.DataFrame:
-        parcel_ids = self.df["parcel_id"].tolist()
+        parcel_ids = self.df["parcel_id"].tolist() # TODO: Remove
         geometries = (
             dict(zip(self.df["parcel_id"], self.df["parcel_geometry"]))
             if "parcel_geometry" in self.df.columns
@@ -60,10 +60,10 @@ def main():
 
     dataset = DatasetProcessor(pipeline, df)
     df_processed = dataset.run()
-    print(df_processed)
+    print(round(df_processed, 2))
     
     export(
-        df_processed,
+        round(df_processed, 2),
         output_dir="/Users/ivanr/Developer/ai-vineyard-productivity/experiments/PRUEBA00/data",
         name="train_df_small_2020",
         config=config,

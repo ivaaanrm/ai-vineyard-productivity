@@ -14,13 +14,14 @@ from .loader import SampleCube
 
 # Supported spatial statistics
 STAT_FNS: Dict[str, Callable[[np.ndarray], float]] = {
-    "mean": np.nanmean,
-    "std": np.nanstd,
+    "mean":   np.nanmean,
+    "std":    np.nanstd,
     "median": np.nanmedian,
-    "p25": lambda v: float(np.nanpercentile(v, 25)),
-    "p75": lambda v: float(np.nanpercentile(v, 75)),
-    "min": np.nanmin,
-    "max": np.nanmax,
+    "p25":    lambda v: float(np.nanpercentile(v, 25)),
+    "p75":    lambda v: float(np.nanpercentile(v, 75)),
+    "p90":    lambda v: float(np.nanpercentile(v, 90)),
+    "min":    np.nanmin,
+    "max":    np.nanmax,
 }
 
 
