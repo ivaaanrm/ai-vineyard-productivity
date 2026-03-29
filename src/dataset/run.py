@@ -1,5 +1,4 @@
 import sys
-import json
 import pandas as pd
 from pathlib import Path
 from typing import List
@@ -10,7 +9,6 @@ sys.path.insert(0, str(ROOT))
 from src.dataset.config import DatasetConfig
 from src.dataset.pipeline import DatasetPipeline, make_pipeline_from_config
 from src.utils.export import export
-from src.visual.visualizer import plot_snapshot
 
 IMAGES = ROOT / "images/dataset"
 BASE = str(ROOT / "agrixel-fair-dockerV2/data/output/files")
@@ -18,7 +16,7 @@ CONFIG = str(ROOT / "src/config/dataset.yml")
 SENSORS = [
     "SENTINEL-2", 
     "SENTINEL-1", 
-    # "SENTINEL-3", 
+    "SENTINEL-3", 
     # "ERA5", 
     # "MODIS"
 ]

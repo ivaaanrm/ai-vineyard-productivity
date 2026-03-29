@@ -1,4 +1,13 @@
-"""Sentinel-2 spectral index calculators: NDVI, EVI, SAVI, NBR2, NDWI."""
+"""Sentinel-2 spectral index calculators: NDVI, EVI, EVI2, SAVI, NBR2, NDWI, GVMI, GNDVI.
+
+Preprocessing
+-------------
+Sentinel-2 L2A bands from Planetary Computer are stored as uint16 with a
+scale factor of 10 000 (i.e. reflectance = DN / 10 000).  Call
+``preprocess_s2`` on every cube before computing any index that uses additive
+constants (EVI, EVI2, SAVI, GVMI).  NDVI and GNDVI are ratio-based and
+scale-invariant, but normalising consistently avoids silent errors.
+"""
 
 from __future__ import annotations
 
@@ -8,6 +17,28 @@ import xarray as xr
 
 from ...loader import SampleCube
 from ..base import IndexCalculator, PlotStyle
+
+
+# ---------------------------------------------------------------------------
+# S2 preprocessing
+# ---------------------------------------------------------------------------
+
+_S2_SCALE = 10_000.0  # L2A DN → reflectance
+
+
+def preprocess_s2(cube: SampleCube) -> None:
+    """Normalise Sentinel-2 DN values (0–10 000) to reflectance (0–1).
+
+    Must be called before any index that contains additive constants
+    (EVI, EVI2, SAVI, GVMI).  Safe to call multiple times — skipped when
+    values are already ≤ 1.
+    """
+    for band in list(cube.variables):
+        da = cube.band(band)
+        # Guard: skip if already normalised (median well below 1)
+        if float(da.median()) <= 1.0:
+            continue
+        cube.replace_band(band, (da.astype("float32") / _S2_SCALE).clip(0.0, 1.0))
 
 
 class NDVI(IndexCalculator):
@@ -63,23 +94,6 @@ class SAVI(IndexCalculator):
         return ((1 + self.L) * (nir - red) / denom).where(denom != 0)
 
 
-class NBR2(IndexCalculator):
-    """Normalized Burn Ratio 2 = (SWIR1 - SWIR2) / (SWIR1 + SWIR2)."""
-
-    def __init__(self) -> None:
-        super().__init__(
-            name="NBR2",
-            required_bands=["B11", "B12"],
-            plot_style=PlotStyle(cmap="RdBu", vmin=-1.0, vmax=1.0),
-        )
-
-    def compute(self, cube: SampleCube) -> xr.DataArray:
-        swir1 = cube.band("B11").astype("float32")
-        swir2 = cube.band("B12").astype("float32")
-        denom = swir1 + swir2
-        return ((swir1 - swir2) / denom).where(denom != 0)
-
-
 class NDWI(IndexCalculator):
     """Normalized Difference Water Index = (Green - NIR) / (Green + NIR)."""
 
@@ -97,10 +111,76 @@ class NDWI(IndexCalculator):
         return ((green - nir) / denom).where(denom != 0)
 
 
+class EVI2(IndexCalculator):
+    """2-band Enhanced Vegetation Index = 2.5 * (NIR - Red) / (NIR + 2.4*Red + 1).
+
+    Blue-band-free variant of EVI. More temporally stable than NDVI across seasons
+    and better suited for Sentinel-2 due to the known blue-band noise in EVI.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            name="EVI2",
+            required_bands=["B08", "B04"],
+            plot_style=PlotStyle(cmap="RdYlGn", vmin=-1.0, vmax=1.0),
+        )
+
+    def compute(self, cube: SampleCube) -> xr.DataArray:
+        nir = cube.band("B08").astype("float32")
+        red = cube.band("B04").astype("float32")
+        denom = nir + 2.4 * red + 1
+        return (2.5 * (nir - red) / denom).where(denom != 0)
+
+
+class GVMI(IndexCalculator):
+    """Global Vegetation Moisture Index = ((NIR+0.1)-(SWIR1+0.02)) / ((NIR+0.1)+(SWIR1+0.02)).
+
+    Sensitive to canopy water content and soil substrate. Identified as the most
+    temporally stable predictor for vineyard substrate differentiation.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            name="GVMI",
+            required_bands=["B08", "B11"],
+            plot_style=PlotStyle(cmap="Blues", vmin=-1.0, vmax=1.0),
+        )
+
+    def compute(self, cube: SampleCube) -> xr.DataArray:
+        nir = cube.band("B08").astype("float32")
+        swir1 = cube.band("B11").astype("float32")
+        num = (nir + 0.1) - (swir1 + 0.02)
+        denom = (nir + 0.1) + (swir1 + 0.02)
+        return (num / denom).where(denom != 0)
+
+
+class GNDVI(IndexCalculator):
+    """Green Normalized Difference Vegetation Index = (NIR - Green) / (NIR + Green).
+
+    More sensitive to chlorophyll concentration than NDVI, particularly
+    useful at grape ripening stages when canopy is fully developed.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            name="GNDVI",
+            required_bands=["B08", "B03"],
+            plot_style=PlotStyle(cmap="RdYlGn", vmin=-1.0, vmax=1.0),
+        )
+
+    def compute(self, cube: SampleCube) -> xr.DataArray:
+        nir = cube.band("B08").astype("float32")
+        green = cube.band("B03").astype("float32")
+        denom = nir + green
+        return ((nir - green) / denom).where(denom != 0)
+
+
 S2_CALCULATORS: List[IndexCalculator] = [
     NDVI(),
     EVI(),
+    EVI2(),
     SAVI(),
-    NBR2(),
     NDWI(),
+    GVMI(),
+    GNDVI(),
 ]

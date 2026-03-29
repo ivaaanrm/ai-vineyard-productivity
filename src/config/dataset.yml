@@ -24,15 +24,20 @@ sensors:
     compute_indices:
       - NDVI
       - EVI
-      # - SAVI
-      # - NBR2
-      # - NDWI
+      - EVI2   # 2-band EVI, more stable than NDVI across years
+      - SAVI
+      - NDWI
+      - GVMI   # canopy moisture / substrate indicator
+      - GNDVI  # chlorophyll concentration at ripening
     output_bands:
       - NDVI
+      - EVI2
+      - GVMI
+      - GNDVI
       # - EVI
       # - SAVI
       # - NBR2
-      # - NDWI
+      - NDWI
       # - B04   # Red
       # - B08   # NIR
       # - B11   # SWIR1

@@ -39,7 +39,7 @@ class SampleCube:
         cube.ds.NDVI.mean(["x", "y"]).plot.line("b-^", figsize=(11, 4))
     """
 
-    def __init__(self, ds: xr.Dataset, sensor: str, parcel_key: str) -> None:
+    def __init__(self, ds: xr.Dataset, sensor: str, parcel_key: str, parcel_mask:str=None) -> None:
         self.sensor = sensor
         self.parcel_key = parcel_key
         # Accept raw 4D zarr format (time, variable, y, x) or standard Dataset
@@ -47,6 +47,7 @@ class SampleCube:
             self._ds = _unpack_zarr(ds)
         else:
             self._ds = ds
+        self.parcel_mask = parcel_mask
 
     @property
     def ds(self) -> xr.Dataset:
