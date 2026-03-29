@@ -1,40 +1,71 @@
 dataset_csv: experiments/PRUEBA00/data/train_df_small_2020.csv
 targets_csv: data/datasets/raw/FULL_SPLITS_DATASET.csv
 
+# Sentinel-2: NDVI, EVI2, GVMI, GNDVI  |  Sentinel-1: RVI, VH_VV
 columns:
   - NDVI_mean
   - NDVI_std
+  - EVI2_mean
+  - EVI2_std
+  - GVMI_mean
+  - GVMI_std
+  - GNDVI_mean
+  - GNDVI_std
   - RVI_mean
   - RVI_std
-  # - EVI_mean
-  # - EVI_std
-  # - LST_C_mean
-  # - TP_MM_mean
-  # - ET_500m_mean
+  - VH_VV_mean
+  - VH_VV_std
 
 target_columns:
   - yield_kg_ha
   - alcohol_degree
 
 extractors:
-  monthly: true
+  # Monthly pivot disabled — too many features, collinear with phase aggregates
+  monthly: false
 
+  # Phenology phase aggregates — 4 aggs × 6 phases × 12 cols = 288 features
   phenology_phases:
     phases:
-      dormancy:    [12, 1, 2]
-      budbreak:    [3, 4]
-      flowering:   [5, 6]
-      veraison:    [7, 8]
-      harvest:     [9, 10]
-      postharvest: [11]
-    aggs: [mean, max]
+      dormancy:     [12, 1, 2]       # reposo invernal
+      budbreak:     [3, 4]           # brotación / desborre
+      flowering:    [5, 6]           # floración
+      veraison:     [7, 8]           # envero
+      harvest:      [8, 9]           # vendimia
+      postharvest:  [10, 11]         # caída de hojas y final de ciclo
+    aggs: [mean, max, min, std]
 
-  temporal_deltas: true
+  # Month-over-month deltas disabled — replaced by phase_delta below
+  temporal_deltas: false
 
+  # Peak value + peak month — 2 × 12 cols = 24 features
   peak_metrics: true
 
+  # LSP-style season metrics — only for bell-curve indices
+  # 8 metrics × 3 cols = 24 features
   season_metrics:
     threshold_pct: 0.2
     base_percentile: 10.0
     columns:
       - NDVI_mean
+      - EVI2_mean
+      - RVI_mean
+
+  # Consecutive phase-to-phase deltas — 5 transitions × 12 cols = 60 features
+  phase_delta:
+    agg: mean
+
+  # Threshold-free binary flags — 5 flags × 12 cols = 60 features
+  boolean_features:
+    early_peak_threshold: 8  # peak month ≤ 8 → early_peak = 1
+
+  # Harvest-date-anchored features — requires harvest_date in targets_csv
+  # Parcel-level: harvest_doy, harvest_month
+  # Per-column: at_harvest, pre_harvest_30d/60d_mean, peak_to_harvest_delta/months
+  harvest_date:
+    pre_harvest_windows: [30, 60]
+    columns:
+      - NDVI_mean
+      - EVI2_mean
+      - GVMI_mean
+      - RVI_mean
