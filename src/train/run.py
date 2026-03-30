@@ -42,6 +42,7 @@ def _print_dry_run(r: dict) -> None:
         print(f"  Targets MISSING: {r['targets_missing']}")
     print(f"  Split:           {r['split_info']}")
     print(f"  Models:          {r['enabled_models']}")
+    print(f"  Grid sizes:      {r['grid_sizes']}")
     if r["nan_features"]:
         print(f"  NaN features:    {r['nan_features']}")
     else:
@@ -54,12 +55,23 @@ def _print_result(r: dict) -> None:
     print(f"Experiment: {r['experiment_dir']}")
     print(f"Split: {r['split_info']}")
     for target, info in r["targets"].items():
-        m = info["metrics"]
-        print(f"  {target}:")
-        print(f"    MAE  = {m['mae']:.1f} kg/ha")
-        print(f"    RMSE = {m['rmse']:.1f} kg/ha")
-        print(f"    R²   = {m['r2']:.4f}")
-        print(f"    MAPE = {m['mape']:.2%}")
+        print(f"\n  {target} (grid: {info['grid_size']} combos):")
+        print(f"  Best params: {info['best_params']}")
+
+        vm = info["val_metrics"]
+        print(f"  Validation:")
+        print(f"    MAE  = {vm['mae']:.1f} kg/ha")
+        print(f"    RMSE = {vm['rmse']:.1f} kg/ha")
+        print(f"    R²   = {vm['r2']:.4f}")
+        print(f"    MAPE = {vm['mape']:.2%}")
+
+        if info.get("test_metrics"):
+            tm = info["test_metrics"]
+            print(f"  Test:")
+            print(f"    MAE  = {tm['mae']:.1f} kg/ha")
+            print(f"    RMSE = {tm['rmse']:.1f} kg/ha")
+            print(f"    R²   = {tm['r2']:.4f}")
+            print(f"    MAPE = {tm['mape']:.2%}")
 
 
 if __name__ == "__main__":

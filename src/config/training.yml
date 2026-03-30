@@ -1,22 +1,23 @@
 dry_run: false
+experiment_directory: experiments/PRUEBA00
 features_csv: experiments/PRUEBA00/data/features.csv
+feature_columns_file: experiments/PRUEBA00/data/train_columns.txt  # optional: fixed column list
 targets:
   - yield_kg_ha
 
 split_column: split      # use existing train/val/test split; null → random split
 test_size: 0.2           # fallback if no split column
 random_state: 42
-experiments_dir: experiments
 
 models:
   xgboost:
     enabled: true
     params:
-      n_estimators: 10         # high — early stopping finds the right number
+      n_estimators: [100, 500, 1000]
       early_stopping_rounds: 50
       eval_metric: mae
-      max_depth: 3
-      learning_rate: 0.03
+      max_depth: [3, 5]
+      learning_rate: [0.03, 0.05]
       subsample: 0.7
       colsample_bytree: 0.5
       min_child_weight: 10
@@ -27,11 +28,11 @@ models:
   random_forest:
     enabled: false
     params:
-      n_estimators: 500           # more trees = more stable averaging
-      max_depth: 8                # shallow for 584 samples (was 12)
-      min_samples_split: 15       # don't split nodes with <15 samples
-      min_samples_leaf: 5         # every leaf needs >=5 samples
-      max_features: 0.4           # sqrt(156)~12, ~8% — 0.4 is conservative
-      max_samples: 0.8            # bootstrap 80% per tree
-      criterion: absolute_error   # MAE-based splits, robust to outliers
+      n_estimators: [200, 500]
+      max_depth: [6, 8]
+      min_samples_split: 15
+      min_samples_leaf: 5
+      max_features: 0.4
+      max_samples: 0.8
+      criterion: absolute_error
       random_state: 42
