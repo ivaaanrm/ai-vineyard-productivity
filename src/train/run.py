@@ -52,9 +52,14 @@ def _print_result(r: dict) -> None:
     print(f"\n{'=' * 60}")
     print(f"Model: {r['model_name']}")
     print(f"Experiment: {r['experiment_dir']}")
+    print(f"Split: {r['split_info']}")
     for target, info in r["targets"].items():
         m = info["metrics"]
-        print(f"  {target}: R²={m['r2']:.4f}  RMSE={m['rmse']:.1f}  MAE={m['mae']:.1f}")
+        print(f"  {target}:")
+        print(f"    MAE  = {m['mae']:.1f} kg/ha")
+        print(f"    RMSE = {m['rmse']:.1f} kg/ha")
+        print(f"    R²   = {m['r2']:.4f}")
+        print(f"    MAPE = {m['mape']:.2%}")
 
 
 if __name__ == "__main__":

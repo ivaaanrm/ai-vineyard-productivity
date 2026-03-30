@@ -18,7 +18,7 @@ ALL_CALCULATORS = S2_CALCULATORS + S1_CALCULATORS + S3_CALCULATORS + ERA5_CALCUL
 
 SENSOR_PREPROCESSORS: Dict[str, Callable] = {
     "SENTINEL-2": preprocess_s2,   # DN (0–10 000) → reflectance (0–1)
-    "SENTINEL-1": preprocess_s1,   # speckle filter on linear sigma0
+    # "SENTINEL-1": preprocess_s1,   # speckle filter on linear sigma0
     "ERA5":       preprocess_era5, # unit conversion
 }
 

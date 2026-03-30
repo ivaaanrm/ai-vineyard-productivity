@@ -1,55 +1,80 @@
 dataset_csv: experiments/PRUEBA00/data/train_df_small_2020.csv
-targets_csv: data/datasets/raw/FULL_SPLITS_DATASET.csv
+targets_csv: data/datasets/raw/SAMPLED_SPLITS_DATASET.csv
+max_null_pct: 10.0  # drop feature columns with more than 10% nulls
 
-# Sentinel-2: NDVI, EVI2, GVMI, GNDVI  |  Sentinel-1: RVI, VH_VV
+# Sentinel-2: mean+std (full mixed signal) + p75+p90 (canopy-focused)
+# Sentinel-1: mean+std only (SAR soil signal is informative)
 columns:
+  # S2 — NDVI
   - NDVI_mean
-  - NDVI_std
-  - EVI2_mean
-  - EVI2_std
+  # - NDVI_std
+  - NDVI_p75
+  # - NDVI_p90
+  # S2 — EVI2
+  # - EVI2_mean
+  # - EVI2_std
+  # - EVI2_p75
+  # - EVI2_p90
+  # S2 — GVMI (canopy moisture)
   - GVMI_mean
-  - GVMI_std
-  - GNDVI_mean
-  - GNDVI_std
-  - RVI_mean
-  - RVI_std
-  - VH_VV_mean
-  - VH_VV_std
+  # - GVMI_std
+  # - GVMI_p75
+  # - GVMI_p90
+  # S2 — GNDVI (chlorophyll)
+  # - GNDVI_mean
+  # - GNDVI_std
+  # - GNDVI_p75
+  # - GNDVI_p90
+  # S1 — RVI + VH_VV
+  # - RVI_mean
+  # - RVI_std
+  # - VH_VV_mean
+  # - VH_VV_std
+  - RVI
+  - LST_C
 
 target_columns:
   - yield_kg_ha
-  - alcohol_degree
+  # - alcohol_degree
 
 extractors:
-  # Monthly pivot disabled — too many features, collinear with phase aggregates
-  monthly: false
+  monthly: true
 
   # Phenology phase aggregates — 4 aggs × 6 phases × 12 cols = 288 features
   phenology_phases:
     phases:
-      dormancy:     [12, 1, 2]       # reposo invernal
+      dormancy:     [1, 2]           # reposo invernal
       budbreak:     [3, 4]           # brotación / desborre
       flowering:    [5, 6]           # floración
       veraison:     [7, 8]           # envero
       harvest:      [8, 9]           # vendimia
       postharvest:  [10, 11]         # caída de hojas y final de ciclo
-    aggs: [mean, max, min, std]
+    aggs:
+      - mean
+      # - std
+      # - max
+      # - min
 
   # Month-over-month deltas disabled — replaced by phase_delta below
   temporal_deltas: false
 
   # Peak value + peak month — 2 × 12 cols = 24 features
-  peak_metrics: true
+  peak_metrics: false
 
   # LSP-style season metrics — only for bell-curve indices
-  # 8 metrics × 3 cols = 24 features
+  # p75 variants added: less soil-diluted → cleaner SOS/EOS detection
+  # 8 metrics × 5 cols = 40 features
+
   season_metrics:
     threshold_pct: 0.2
     base_percentile: 10.0
     columns:
       - NDVI_mean
-      - EVI2_mean
-      - RVI_mean
+      # - NDVI_p75    # canopy-focused phenology curve
+      # - EVI2_mean
+      # - EVI2_p75
+      # - RVI_mean
+      - RVI
 
   # Consecutive phase-to-phase deltas — 5 transitions × 12 cols = 60 features
   phase_delta:
@@ -66,6 +91,9 @@ extractors:
     pre_harvest_windows: [30, 60]
     columns:
       - NDVI_mean
-      - EVI2_mean
-      - GVMI_mean
+      - NDVI_p75    # canopy state at harvest, soil-suppressed
+      # - EVI2_mean
+      # - EVI2_p75
+      # - GVMI_mean   # moisture loss at harvest
+      # - GVMI_p75
       - RVI_mean

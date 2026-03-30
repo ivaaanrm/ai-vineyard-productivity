@@ -69,7 +69,8 @@ class FeaturePipeline:
             df = df.merge(hd, on=self.config.merge_columns, how="left")
 
         features_df = self.extract_features(df)
-        return self._merge_targets(features_df, targets_df)
+        result = self._merge_targets(features_df, targets_df)
+        return self._drop_high_null_columns(result)
 
     def extract_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """Extract features only (no target merge).  Useful for inference."""
@@ -144,6 +145,24 @@ class FeaturePipeline:
             extractors.append((ext, cols))
 
         return extractors
+
+    def _drop_high_null_columns(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Drop feature columns whose null percentage exceeds the threshold."""
+        threshold = self.config.max_null_pct
+        if threshold >= 100.0:
+            return df
+
+        protected = set(self.config.merge_columns + self.config.target_columns + ["split"])
+        null_pct = df.isnull().mean() * 100
+        to_drop = [
+            col for col in df.columns
+            if col not in protected and null_pct[col] > threshold
+        ]
+
+        if to_drop:
+            print(f"Dropping {len(to_drop)} columns with >{threshold}% nulls: {to_drop}")
+
+        return df.drop(columns=to_drop)
 
     def _merge_targets(
         self, features_df: pd.DataFrame, targets_df: pd.DataFrame

@@ -33,10 +33,10 @@ sensors:
       - NDVI
       - GVMI   # canopy moisture / substrate indicator
       # - EVI
-      # - EVI2   # 2-band EVI, more stable than NDVI across years
+      - EVI2   # 2-band EVI, more stable than NDVI across years
       # - SAVI
       # - NDWI
-      # - GNDVI  # chlorophyll concentration at ripening
+      - GNDVI  # chlorophyll concentration 
     output_bands:
       - NDVI
       # - EVI2

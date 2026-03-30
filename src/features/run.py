@@ -32,6 +32,8 @@ def main(config_path: str | Path | None = None) -> Path:
     print(f"Feature matrix: {result.shape[0]} rows x {result.shape[1]} columns")
 
     output_dir = Path(config.dataset_csv).parent
+    print(round(result,4))
+    print(output_dir)
     return export(round(result,4), output_dir=output_dir, name="features", config=config)
 
 

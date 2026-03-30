@@ -67,6 +67,7 @@ class FeaturesConfig(BaseModel):
     target_columns: List[str] = ["yield_kg_ha", "alcohol_degree"]
     merge_columns: List[str] = ["parcel_id", "year"]
     extractors: ExtractorsConfig = ExtractorsConfig()
+    max_null_pct: float = 10.0  # drop feature columns with more than this % nulls
 
     @classmethod
     def from_yaml(cls, path: Path | str) -> FeaturesConfig:

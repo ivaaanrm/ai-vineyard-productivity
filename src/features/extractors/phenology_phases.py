@@ -9,12 +9,6 @@ from .base import DEFAULT_PHASES
 
 
 class PhenologyPhaseExtractor:
-    """Aggregate values within predefined vineyard phenology phases.
-
-    Output pattern: ``{col}_{phase}_{agg}``
-    e.g. ``NDVI_mean_flowering_mean``, ``EVI2_mean_veraison_max``
-    """
-
     name = "phenology_phases"
 
     def __init__(

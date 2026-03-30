@@ -19,8 +19,8 @@ class XGBoostModel:
         self._params = params
         self._model = XGBRegressor(**params)
 
-    def fit(self, X: np.ndarray, y: np.ndarray) -> None:
-        self._model.fit(X, y)
+    def fit(self, X: np.ndarray, y: np.ndarray, **kwargs: Any) -> None:
+        self._model.fit(X, y, **kwargs)
 
     def predict(self, X: np.ndarray) -> np.ndarray:
         return self._model.predict(X)
