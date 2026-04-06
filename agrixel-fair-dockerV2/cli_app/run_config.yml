@@ -1,7 +1,4 @@
-start_date: "2021-01-01"
-end_date: "2026-01-01"
 equidistant: true
-num_samples: 120
 max_parallel: 5
 
 buffer_m: 100

@@ -5,13 +5,16 @@ Execution order: parcel → sensors (parallel) → time windows → cleanup.
 
 from __future__ import annotations
 
+import ast
+import calendar
 import csv
 import json
+import random
 import subprocess
 import tempfile
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import date, timedelta
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -48,18 +51,21 @@ SENSOR_FOLDER_NAMES = {
 }
 
 
-def split_date_range(start: date, end: date, n: int) -> list[tuple[date, date]]:
-    """Divide [start, end] into n equal sub-windows. Last window absorbs remainder."""
-    total_days = (end - start).days + 1
-    window_size = total_days // n
-    windows = []
-    for i in range(n):
-        win_start = start + timedelta(days=i * window_size)
-        if i == n - 1:
-            win_end = end
-        else:
-            win_end = start + timedelta(days=(i + 1) * window_size - 1)
-        windows.append((win_start, win_end))
+def _parse_years(raw: str) -> list[int]:
+    """Parse a years column value like '[2021, 2022, 2023]' into a list of ints."""
+    return sorted(int(y) for y in ast.literal_eval(raw))
+
+
+def generate_yearly_windows(years: list[int]) -> list[tuple[date, date]]:
+    """Generate one window per month (1st-end) for each year.
+
+    Returns at most 12 windows per year, sorted chronologically.
+    """
+    windows: list[tuple[date, date]] = []
+    for year in sorted(years):
+        for month in range(1, 13):
+            last_day = calendar.monthrange(year, month)[1]
+            windows.append((date(year, month, 1), date(year, month, last_day)))
     return windows
 
 
@@ -242,15 +248,17 @@ def _run_sensor(
     env: dict[str, str],
     parcel_csv_name: str,
     parcel_id: str,
+    years: list[int],
 ) -> dict:
     """Run all date windows for a single sensor on a single parcel."""
     print(f"    [{parcel_id}] Starting {sensor_key}")
 
     if run_cfg.equidistant:
-        windows = split_date_range(run_cfg.start_date, run_cfg.end_date, run_cfg.num_samples)
+        windows = generate_yearly_windows(years)
         max_items = 1
     else:
-        windows = [(run_cfg.start_date, run_cfg.end_date)]
+        # One full-year window per year
+        windows = [(date(y, 1, 1), date(y, 12, 31)) for y in sorted(years)]
         max_items = None
 
     input_dir = data_dir / "input"
@@ -374,6 +382,7 @@ def run_all(
         return {}
 
     parcels = _read_parcels(data_dir)
+    random.shuffle(parcels)
     total_parcels = len(parcels)
 
     if batch_index is not None and batch_total is not None:
@@ -383,9 +392,7 @@ def run_all(
         print(f"Parcels: {total_parcels}")
     print(f"Sensors: {list(enabled.keys())}")
     print(f"Max parallel: {run_cfg.max_parallel}")
-    print(f"Date range: {run_cfg.start_date} -> {run_cfg.end_date}")
-    if run_cfg.equidistant:
-        print(f"Equidistant: {run_cfg.num_samples} samples")
+    print(f"Equidistant: {run_cfg.equidistant} (1 sample/month)")
 
     all_results: dict[str, dict[str, dict]] = {}
 
@@ -395,8 +402,9 @@ def run_all(
             break
 
         parcel_id = parcel_row[AOI_ID_COLUMN]
+        years = _parse_years(parcel_row["years"])
         print(f"\n{'='*60}")
-        print(f"  PARCEL {idx+1}/{len(parcels)}: {parcel_id}")
+        print(f"  PARCEL {idx+1}/{len(parcels)}: {parcel_id}  years={years}")
         print(f"{'='*60}")
 
         # Write a single-row CSV so Docker processes only this parcel
@@ -408,7 +416,7 @@ def run_all(
             futures = {
                 pool.submit(
                     _run_sensor, sensor_key, sensor_cfg, run_cfg, data_dir,
-                    dry_run, env, parcel_csv.name, parcel_id,
+                    dry_run, env, parcel_csv.name, parcel_id, years,
                 ): sensor_key
                 for sensor_key, sensor_cfg in enabled.items()
             }
