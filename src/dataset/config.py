@@ -74,6 +74,7 @@ class DatasetConfig(BaseModel):
     temporal: TemporalConfig | None = None
     parcel_mask: bool = False
     fuse_sensors: bool = False
+    output_dir: str | None = None  # explicit output directory; None → cwd
 
     @classmethod
     def from_yaml(cls, path: Path | str) -> DatasetConfig:

@@ -12,12 +12,12 @@ from src.utils.export import export
 
 IMAGES = ROOT / "images/dataset"
 BASE = str(ROOT / "agrixel-fair-dockerV2/data/output/files")
-CONFIG = str(ROOT / "src/config/dataset.yml")
+DEFAULT_CONFIG = str(ROOT / "src/config/dataset.yml")
 SENSORS = [
-    "SENTINEL-2", 
-    "SENTINEL-1", 
-    "SENTINEL-3", 
-    # "ERA5", 
+    "SENTINEL-2",
+    "SENTINEL-1",
+    "SENTINEL-3",
+    # "ERA5",
     # "MODIS"
 ]
 
@@ -53,19 +53,21 @@ def load_df(path: str) -> pd.DataFrame:
     return pd.read_csv(path)
 
 
-def main():
-    config = DatasetConfig.from_yaml(CONFIG)
-    pipeline = make_pipeline_from_config(BASE, CONFIG)
+def main(config_path: str | None = None):
+    config_path = config_path or DEFAULT_CONFIG
+    config = DatasetConfig.from_yaml(config_path)
+    pipeline = make_pipeline_from_config(BASE, config_path)
     df = load_df(config.paths["aoi_table"])
 
     dataset = DatasetProcessor(pipeline, df)
     df_processed = dataset.run()
     print(round(df_processed, 2))
-    
+
+    output_dir = config.output_dir or str(ROOT / "experiments" / "data")
     export(
         round(df_processed, 2),
-        output_dir="/Users/ivanr/Developer/ai-vineyard-productivity/experiments/PRUEBA00/data",
-        name="train_df_small_2020",
+        output_dir=output_dir,
+        name="dataset",
         config=config,
     )
 

@@ -8,7 +8,6 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from .config import TemporalConfig
 from .sensors import IndexCalculator
 from .loader import SampleCube
 
@@ -95,64 +94,3 @@ class ParcelStatsExtractor:
 
         return pd.DataFrame(records)
 
-
-def aggregate_temporal(df: pd.DataFrame, config: TemporalConfig) -> pd.DataFrame:
-    """Aggregate rows temporally (resample and/or rolling) per parcel/sensor group.
-
-    When resample is configured, adds an ``n_samples`` column with the count of
-    original observations that fell into each resampled period.
-    """
-    if config.resample is None and config.rolling is None:
-        return df
-
-    meta_cols = ["parcel_id", "sensor"]
-    numeric_cols = [c for c in df.columns if c not in [*meta_cols, "time"]]
-
-    frames: List[pd.DataFrame] = []
-
-    for (pk, sensor), group in df.groupby(meta_cols, sort=False):
-        ts = group.copy()
-        ts["time"] = pd.to_datetime(ts["time"])
-        ts = ts.set_index("time").sort_index()
-
-        if config.resample is not None:
-            resampler = ts[numeric_cols].resample(config.resample.freq)
-            n_samples = ts[numeric_cols[0]].resample(config.resample.freq).count()
-            aggs = config.resample.agg
-            if isinstance(aggs, list):
-                # Multiple aggs → produce {col}_{agg} columns for each
-                parts = []
-                for a in aggs:
-                    part = resampler.agg(a)
-                    part = part.rename(columns={c: f"{c}_{a}" for c in numeric_cols})
-                    parts.append(part)
-                ts = pd.concat(parts, axis=1)
-                numeric_cols_new = [c for c in ts.columns]
-            else:
-                ts = resampler.agg(aggs)
-                numeric_cols_new = numeric_cols
-            ts["n_samples"] = n_samples
-            # Drop periods with no original observations
-            ts = ts.dropna(subset=numeric_cols_new, how="all")
-
-        if config.rolling is not None:
-            roll_cols = [c for c in numeric_cols if c in ts.columns]
-            rolled = (
-                ts[roll_cols]
-                .rolling(
-                    window=config.rolling.window,
-                    min_periods=config.rolling.min_periods,
-                )
-                .agg(config.rolling.agg)
-            )
-            ts[roll_cols] = rolled
-
-        ts["parcel_id"] = pk
-        ts["sensor"] = sensor
-        ts = ts.reset_index()
-        ts["time"] = ts["time"].dt.date
-        frames.append(ts)
-    df = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
-    df = df.reindex(columns=["parcel_id", "time", "sensor"] + 
-                [c for c in df.columns if c not in ["parcel_id", "time", "sensor"]])
-    return df

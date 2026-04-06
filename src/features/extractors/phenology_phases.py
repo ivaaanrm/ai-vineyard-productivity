@@ -16,7 +16,7 @@ class PhenologyPhaseExtractor:
         phases: dict[str, list[int]] | None = None,
         aggs: list[str] | None = None,
     ) -> None:
-        self.phases = phases or DEFAULT_PHASES
+        self.phases = phases or {}
         self.aggs = aggs or ["mean", "max"]
 
     def extract(self, group: pd.DataFrame, columns: list[str]) -> dict[str, float]:

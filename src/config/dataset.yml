@@ -1,8 +1,13 @@
+# ── I/O ──────────────────────────────────────────────────────────────
+# inputs:  paths.aoi_table, raw zarr cubes
+# outputs: output_dir/dataset.csv
+output_dir: null  # null → experiments/data
+
 parcel_mask: true
 fuse_sensors: true
 
 paths:
-  aoi_table: /Users/ivanr/Developer/ai-vineyard-productivity/agrixel-fair-dockerV2/data/input/aoi_table.csv
+  aoi_table: agrixel-fair-dockerV2/data/input/aoi_table.csv
 
 # Temporal aggregation (optional)
 temporal:
@@ -31,24 +36,26 @@ sensors:
       # - p90
     compute_indices:
       - NDVI
-      - GVMI   # canopy moisture / substrate indicator
+      # - GVMI   # canopy moisture / substrate indicator
       # - EVI
-      - EVI2   # 2-band EVI, more stable than NDVI across years
+      # - EVI2   # 2-band EVI, more stable than NDVI across years
       # - SAVI
       # - NDWI
-      - GNDVI  # chlorophyll concentration 
+      # - GNDVI  # chlorophyll concentration 
     output_bands:
-      - NDVI
+      # - NDVI
       # - EVI2
-      - GVMI
+      # - GVMI
       # - GNDVI
       # - EVI
       # - SAVI
       # - NBR2
       # - NDWI
-      # - B04   # Red
-      # - B08   # NIR
-      # - B11   # SWIR1
+      - B02
+      - B03
+      - B04   # Red
+      - B08   # NIR
+      - B11   # SWIR1
 
   SENTINEL-1:
     # 10m SAR — volume scattering integrates soil+canopy; soil moisture signal
@@ -61,9 +68,9 @@ sensors:
       # - VH_VV
       # - DpRVI
     output_bands:
-      # - VV
-      # - VH
-      - RVI
+      - VV
+      - VH
+      # - RVI
       # - VH_VV
       # - DpRVI
 

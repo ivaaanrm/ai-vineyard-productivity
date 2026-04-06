@@ -63,6 +63,7 @@ class FeaturesConfig(BaseModel):
 
     dataset_csv: str
     targets_csv: str
+    output_dir: str | None = None  # explicit output dir; None → same dir as dataset_csv
     columns: List[str]
     target_columns: List[str] = ["yield_kg_ha", "alcohol_degree"]
     merge_columns: List[str] = ["parcel_id", "year"]

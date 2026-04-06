@@ -1,12 +1,16 @@
+# ── I/O ──────────────────────────────────────────────────────────────
+# inputs:  features_csv, feature_columns_file (optional)
+# outputs: experiment_directory/<model>_<ts>/
+features_csv: experiments/EXP_20260330/data/features.csv
+# feature_columns_file: experiments/PRUEBA00/data/train_columns.txt
+experiment_directory: experiments/EXP_20260330
+
 dry_run: false
-experiment_directory: experiments/PRUEBA00
-features_csv: experiments/PRUEBA00/data/features.csv
-feature_columns_file: experiments/PRUEBA00/data/train_columns.txt  # optional: fixed column list
 targets:
   - yield_kg_ha
 
-split_column: split      # use existing train/val/test split; null → random split
-test_size: 0.2           # fallback if no split column
+split_column: split
+test_size: 0.2
 random_state: 42
 
 models:
