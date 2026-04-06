@@ -53,8 +53,9 @@ class TemporalConfig(BaseModel):
 class SensorConfig(BaseModel):
     compute_indices: List[str]
     output_bands: List[str]
-    stats: List[str] | None = None  # Override global stats for this sensor
-    temporal: TemporalConfig | None = None  # Override global temporal for this sensor
+    stats: List[str] | None = None          # None → inherit global stats
+    temporal: TemporalConfig | None = None  # None → inherit global temporal
+    parcel_mask: bool | None = None         # None → inherit global parcel_mask
 
     @model_validator(mode="after")
     def _check_known_indices(self) -> SensorConfig:
@@ -73,6 +74,7 @@ class DatasetConfig(BaseModel):
     temporal: TemporalConfig | None = None
     parcel_mask: bool = False
     fuse_sensors: bool = False
+    output_dir: str | None = None  # explicit output directory; None → cwd
 
     @classmethod
     def from_yaml(cls, path: Path | str) -> DatasetConfig:
@@ -97,6 +99,18 @@ class DatasetConfig(BaseModel):
         if cfg and cfg.stats is not None:
             return cfg.stats
         return self.stats
+
+    def mask_for(self, sensor: str) -> bool:
+        """Return whether to apply parcel masking for a sensor.
+
+        Per-sensor ``parcel_mask`` takes priority; falls back to the global flag.
+        Coarse-resolution sensors (S3, ERA5, MODIS) should set ``parcel_mask: false``
+        in the YAML to avoid the geometry clip failing on 1 km+ pixels.
+        """
+        cfg = self.sensors.get(sensor)
+        if cfg and cfg.parcel_mask is not None:
+            return cfg.parcel_mask
+        return self.parcel_mask
 
     def temporal_for(self, sensor: str) -> TemporalConfig | None:
         """Return temporal config for a sensor (per-sensor override merged with global)."""

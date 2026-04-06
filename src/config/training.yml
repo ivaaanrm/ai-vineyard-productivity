@@ -1,30 +1,42 @@
-dry_run: true
-features_csv: experiments/PRUEBA00/data/features.csv
+# ── I/O ──────────────────────────────────────────────────────────────
+# inputs:  features_csv, feature_columns_file (optional)
+# outputs: experiment_directory/<model>_<ts>/
+features_csv: experiments/EXP_20260330/data/features.csv
+# feature_columns_file: experiments/PRUEBA00/data/train_columns.txt
+experiment_directory: experiments/EXP_20260330
+
+dry_run: false
 targets:
   - yield_kg_ha
-  # - alcohol_degree
 
-split_column: split      # use existing train/val/test split; null → random split
-test_size: 0.2           # fallback if no split column
+split_column: split
+test_size: 0.2
 random_state: 42
-experiments_dir: experiments
 
 models:
-  random_forest:
+  xgboost:
     enabled: true
     params:
-      n_estimators: 200
-      max_depth: 12
-      min_samples_split: 5
-      min_samples_leaf: 2
+      n_estimators: [100, 500, 1000]
+      early_stopping_rounds: 50
+      eval_metric: mae
+      max_depth: [3, 5]
+      learning_rate: [0.03, 0.05]
+      subsample: 0.7
+      colsample_bytree: 0.5
+      min_child_weight: 10
+      reg_alpha: 1.0
+      reg_lambda: 5.0
       random_state: 42
 
-  xgboost:
+  random_forest:
     enabled: false
     params:
-      n_estimators: 200
-      max_depth: 6
-      learning_rate: 0.1
-      subsample: 0.8
-      colsample_bytree: 0.8
+      n_estimators: [200, 500]
+      max_depth: [6, 8]
+      min_samples_split: 15
+      min_samples_leaf: 5
+      max_features: 0.4
+      max_samples: 0.8
+      criterion: absolute_error
       random_state: 42

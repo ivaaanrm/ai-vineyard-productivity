@@ -8,9 +8,12 @@ import pandas as pd
 
 from .config import FeaturesConfig
 from .extractors import (
+    BooleanFeaturesExtractor,
     FeatureExtractor,
+    HarvestDateExtractor,
     MonthlyPivotExtractor,
     PeakMetricsExtractor,
+    PhaseDeltaExtractor,
     PhenologyPhaseExtractor,
     SeasonMetricsExtractor,
     TemporalDeltaExtractor,
@@ -22,10 +25,12 @@ class FeaturePipeline:
 
     Data flow:
         1. Load dataset CSV (parcel_id, time, {index}_{stat} columns)
-        2. Add year / month columns from ``time``
-        3. Group by (parcel_id, year)
-        4. Run all enabled extractors per group
-        5. Merge with targets CSV on (parcel_id, year)
+        2. Load targets CSV — pre-merge ``harvest_date`` if the extractor
+           is enabled and the column is present.
+        3. Add year / month columns from ``time``
+        4. Group by (parcel_id, year)
+        5. Run all enabled extractors per group
+        6. Merge remaining target columns on (parcel_id, year)
     """
 
     def __init__(self, config: FeaturesConfig) -> None:
@@ -46,9 +51,26 @@ class FeaturePipeline:
         if df is None:
             df = pd.read_csv(self.config.dataset_csv, parse_dates=["time"])
 
-        features_df = self.extract_features(df)
         targets_df = pd.read_csv(self.config.targets_csv)
-        return self._merge_targets(features_df, targets_df)
+
+        # Pre-merge harvest_date into the time-series df so the
+        # HarvestDateExtractor can access it per (parcel_id, year) group.
+        if (
+            self.config.extractors.harvest_date is not None
+            and "harvest_date" in targets_df.columns
+        ):
+            df = df.copy()
+            df["time"] = pd.to_datetime(df["time"])
+            df["year"] = df["time"].dt.year
+            hd = (
+                targets_df[self.config.merge_columns + ["harvest_date"]]
+                .drop_duplicates()
+            )
+            df = df.merge(hd, on=self.config.merge_columns, how="left")
+
+        features_df = self.extract_features(df)
+        result = self._merge_targets(features_df, targets_df)
+        return self._drop_high_null_columns(result)
 
     def extract_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """Extract features only (no target merge).  Useful for inference."""
@@ -100,10 +122,47 @@ class FeaturePipeline:
                 base_percentile=cfg.season_metrics.base_percentile,
             )
             extractors.append((ext, cols))
-        
-        # Añadir nuevos extractores
+
+        if cfg.phase_delta is not None:
+            ext = PhaseDeltaExtractor(
+                phases=cfg.phase_delta.phases,
+                agg=cfg.phase_delta.agg,
+            )
+            extractors.append((ext, self.config.columns))
+
+        if cfg.boolean_features is not None:
+            ext = BooleanFeaturesExtractor(
+                phases=cfg.boolean_features.phases,
+                early_peak_threshold=cfg.boolean_features.early_peak_threshold,
+            )
+            extractors.append((ext, self.config.columns))
+
+        if cfg.harvest_date is not None:
+            cols = cfg.harvest_date.columns or self.config.columns
+            ext = HarvestDateExtractor(
+                pre_harvest_windows=cfg.harvest_date.pre_harvest_windows,
+            )
+            extractors.append((ext, cols))
 
         return extractors
+
+    def _drop_high_null_columns(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Drop feature columns whose null percentage exceeds the threshold."""
+        threshold = self.config.max_null_pct
+        if threshold >= 100.0:
+            return df
+
+        protected = set(self.config.merge_columns + self.config.target_columns + ["split"])
+        null_pct = df.isnull().mean() * 100
+        to_drop = [
+            col for col in df.columns
+            if col not in protected and null_pct[col] > threshold
+        ]
+
+        if to_drop:
+            print(f"Dropping {len(to_drop)} columns with >{threshold}% nulls: {to_drop}")
+
+        return df.drop(columns=to_drop)
 
     def _merge_targets(
         self, features_df: pd.DataFrame, targets_df: pd.DataFrame

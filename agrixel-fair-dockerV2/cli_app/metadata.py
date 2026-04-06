@@ -11,12 +11,16 @@ from .config import RunConfig
 
 def build_metadata(
     run_cfg: RunConfig,
-    sensor_results: dict[str, dict],
+    parcel_results: dict[str, dict[str, dict]],
     started_at: datetime,
     finished_at: datetime,
     dry_run: bool = False,
 ) -> dict:
-    """Build the metadata dict for the run."""
+    """Build the metadata dict for the run.
+
+    Args:
+        parcel_results: {parcel_id: {sensor_key: result_dict}}
+    """
     return {
         "run_id": started_at.strftime("%Y%m%d_%H%M%S"),
         "config": json.loads(run_cfg.model_dump_json()),
@@ -24,7 +28,8 @@ def build_metadata(
         "started_at": started_at.isoformat(),
         "finished_at": finished_at.isoformat(),
         "duration_seconds": round((finished_at - started_at).total_seconds(), 1),
-        "sensors": sensor_results,
+        "parcels_total": len(parcel_results),
+        "parcels": parcel_results,
     }
 
 

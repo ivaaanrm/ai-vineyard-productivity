@@ -8,8 +8,6 @@ from typing import Dict, List
 import yaml
 from pydantic import BaseModel
 
-# Añadir nuevos extractores
-
 
 class PhenologyPhasesConfig(BaseModel):
     """Config for phenology phase aggregation."""
@@ -26,6 +24,27 @@ class SeasonMetricsConfig(BaseModel):
     columns: List[str] | None = None  # None → use parent-level columns
 
 
+class PhaseDeltaConfig(BaseModel):
+    """Config for consecutive phase-to-phase delta extractor."""
+
+    phases: Dict[str, List[int]] | None = None  # None → use defaults
+    agg: str = "mean"
+
+
+class BooleanFeaturesConfig(BaseModel):
+    """Config for threshold-free binary flag extractor."""
+
+    phases: Dict[str, List[int]] | None = None  # None → use defaults
+    early_peak_threshold: int = 8  # months ≤ this → early_peak=1
+
+
+class HarvestDateConfig(BaseModel):
+    """Config for harvest-date-anchored feature extractor."""
+
+    pre_harvest_windows: List[int] = [30, 60]  # days before harvest_date
+    columns: List[str] | None = None  # None → use parent-level columns
+
+
 class ExtractorsConfig(BaseModel):
     """Which extractors to run and their parameters."""
 
@@ -34,6 +53,9 @@ class ExtractorsConfig(BaseModel):
     temporal_deltas: bool = True
     peak_metrics: bool = True
     season_metrics: SeasonMetricsConfig | None = SeasonMetricsConfig()
+    phase_delta: PhaseDeltaConfig | None = None
+    boolean_features: BooleanFeaturesConfig | None = None
+    harvest_date: HarvestDateConfig | None = None
 
 
 class FeaturesConfig(BaseModel):
@@ -41,10 +63,12 @@ class FeaturesConfig(BaseModel):
 
     dataset_csv: str
     targets_csv: str
+    output_dir: str | None = None  # explicit output dir; None → same dir as dataset_csv
     columns: List[str]
     target_columns: List[str] = ["yield_kg_ha", "alcohol_degree"]
     merge_columns: List[str] = ["parcel_id", "year"]
     extractors: ExtractorsConfig = ExtractorsConfig()
+    max_null_pct: float = 10.0  # drop feature columns with more than this % nulls
 
     @classmethod
     def from_yaml(cls, path: Path | str) -> FeaturesConfig:

@@ -20,11 +20,12 @@ class TrainingConfig(BaseModel):
     """Top-level training config."""
 
     features_csv: str
+    feature_columns_file: str | None = None  # path to .txt with one column name per line
     targets: List[str] = ["yield_kg_ha", "alcohol_degree"]
     split_column: str | None = "split"
     test_size: float = 0.2
     random_state: int = 42
-    experiments_dir: str = "experiments"
+    experiment_directory: str = "experiments"
     dry_run: bool = False
     models: Dict[str, ModelConfig] = {}
 

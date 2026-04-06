@@ -1,40 +1,57 @@
-dataset_csv: experiments/PRUEBA00/data/train_df_small_2020.csv
-targets_csv: data/datasets/raw/FULL_SPLITS_DATASET.csv
+# ── I/O ──────────────────────────────────────────────────────────────
+# inputs:  dataset_csv, targets_csv
+# outputs: output_dir/features.csv
+dataset_csv: experiments/EXP_20260330/data/dataset.csv
+targets_csv: data/datasets/raw/SAMPLED_SPLITS_DATASET.csv
+output_dir: null  # null → same dir as dataset_csv
+max_null_pct: 10.0
 
 columns:
-  - NDVI_mean
-  - NDVI_std
-  - RVI_mean
-  - RVI_std
-  # - EVI_mean
-  # - EVI_std
-  # - LST_C_mean
-  # - TP_MM_mean
-  # - ET_500m_mean
+  - B02_mean
+  - B03_mean
+  - B04_mean
+  - B08_mean
+  - B11_mean
+  - VV
+  - VH
+  - LST_C
 
 target_columns:
   - yield_kg_ha
-  - alcohol_degree
 
 extractors:
   monthly: true
 
-  phenology_phases:
-    phases:
-      dormancy:    [12, 1, 2]
-      budbreak:    [3, 4]
-      flowering:   [5, 6]
-      veraison:    [7, 8]
-      harvest:     [9, 10]
-      postharvest: [11]
-    aggs: [mean, max]
+  # phenology_phases:
+  #   phases:
+  #     dormancy:     [1, 2]
+  #     budbreak:     [3, 4]
+  #     flowering:    [5, 6]
+  #     veraison:     [7, 8]
+  #     harvest:      [8, 9]
+  #     postharvest:  [10, 11]
+  #   aggs:
+  #     - mean
 
-  temporal_deltas: true
+  temporal_deltas: false
+  peak_metrics: false
 
-  peak_metrics: true
+  season_metrics: 
+  #   threshold_pct: 0.2
+  #   base_percentile: 10.0
+  #   columns:
+  #     - NDVI_mean
+  #     - RVI
 
-  season_metrics:
-    threshold_pct: 0.2
-    base_percentile: 10.0
-    columns:
-      - NDVI_mean
+  phase_delta:
+  #   agg: mean
+
+  boolean_features:
+  #   early_peak_threshold: 8
+
+  harvest_date:
+  #   pre_harvest_windows: [30, 60]
+  #   columns:
+  #     - NDVI_mean
+  #     - NDVI_p75
+  #     - RVI_mean

@@ -103,9 +103,9 @@ def _make_s2_rgb(red: np.ndarray, green: np.ndarray, blue: np.ndarray) -> np.nda
     NaN pixels become fully transparent (alpha = 0).
     """
     valid = np.isfinite(red) & np.isfinite(green) & np.isfinite(blue)
-    r = _s_adj(np.nan_to_num(red.astype("float32"), nan=0.0) / 10000.0)
-    g = _s_adj(np.nan_to_num(green.astype("float32"), nan=0.0) / 10000.0)
-    b = _s_adj(np.nan_to_num(blue.astype("float32"), nan=0.0) / 10000.0)
+    r = _s_adj(np.nan_to_num(red.astype("float32"), nan=0.0) )
+    g = _s_adj(np.nan_to_num(green.astype("float32"), nan=0.0) )
+    b = _s_adj(np.nan_to_num(blue.astype("float32"), nan=0.0) )
     r, g, b = _sat_enh(r, g, b)
     rgb = np.dstack([_s_rgb(r), _s_rgb(g), _s_rgb(b)])
     rgba = np.dstack([np.clip(rgb, 0.0, 1.0), valid.astype("float32")])

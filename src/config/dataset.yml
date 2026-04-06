@@ -1,55 +1,85 @@
+# ── I/O ──────────────────────────────────────────────────────────────
+# inputs:  paths.aoi_table, raw zarr cubes
+# outputs: output_dir/dataset.csv
+output_dir: null  # null → experiments/data
+
 parcel_mask: true
 fuse_sensors: true
 
 paths:
-  aoi_table: /Users/ivanr/Developer/ai-vineyard-productivity/agrixel-fair-dockerV2/data/input/aoi_table.csv
+  aoi_table: agrixel-fair-dockerV2/data/input/aoi_table.csv
 
 # Temporal aggregation (optional)
 temporal:
   resample:
     freq: "ME"       # pandas offset: MS=month-start, 4W=4-weeks, 2W=biweekly, ME=month-end
     agg: "median"    # mean, median, min, max, sum, std
-  rolling:
-    window: 2
-    min_periods: 1
-    agg: "mean"
+  # rolling:
+  #   window: 2
+  #   min_periods: 1
+  #   agg: "mean"
 
+# Global fallback — used for any sensor that does not declare its own stats
 stats:
   - mean
-  - std
-  # - median
+  # - std
 
 sensors:
   SENTINEL-2:
+    # 10m optical — bimodal soil/canopy distribution within the parcel.
+    # p75 targets the vine canopy cluster; p90 captures dense-canopy pixels.
+    # mean kept as the full mixed signal; std captures row structure.
+    stats: 
+      - mean
+      # - std
+      - p75
+      # - p90
     compute_indices:
       - NDVI
-      - EVI
+      # - GVMI   # canopy moisture / substrate indicator
+      # - EVI
+      # - EVI2   # 2-band EVI, more stable than NDVI across years
       # - SAVI
-      # - NBR2
       # - NDWI
+      # - GNDVI  # chlorophyll concentration 
     output_bands:
-      - NDVI
+      # - NDVI
+      # - EVI2
+      # - GVMI
+      # - GNDVI
       # - EVI
       # - SAVI
       # - NBR2
       # - NDWI
-      # - B04   # Red
-      # - B08   # NIR
-      # - B11   # SWIR1
+      - B02
+      - B03
+      - B04   # Red
+      - B08   # NIR
+      - B11   # SWIR1
 
   SENTINEL-1:
+    # 10m SAR — volume scattering integrates soil+canopy; soil moisture signal
+    # is agronomically meaningful. p75/p90 risk picking up trellis double-bounce.
+    stats: 
+      - mean
+      # - std
     compute_indices:
       - RVI
-      - VH_VV
+      # - VH_VV
       # - DpRVI
     output_bands:
-      # - VV
-      # - VH
-      - RVI
+      - VV
+      - VH
+      # - RVI
       # - VH_VV
       # - DpRVI
 
   SENTINEL-3:
+    # 1km thermal — parcel spans 0–4 pixels at most. Geometry clipping at this
+    # resolution produces empty/all-NaN cubes; use the full tile mean instead.
+    parcel_mask: false
+    stats: 
+      - mean
     compute_indices:
       - LST_C
     output_bands:
@@ -57,17 +87,21 @@ sensors:
       - LST_C
 
   ERA5:
-    stats: [mean]               # spatial std meaningless at ~11km native resolution
+    # ~11km — single pixel per parcel. Geometry masking makes no sense.
+    parcel_mask: false
+    stats: [mean]
     compute_indices:
       - TP_MM
     output_bands:
       - TP_MM
     temporal:
       resample:
-        agg: [sum]        # total precip + avg daily rate in period
+        agg: [sum]        # total precip in period
 
   MODIS:
-    stats: [mean]               # spatial std meaningless at 500m native resolution
+    # 500m — too coarse for meaningful intra-parcel masking.
+    parcel_mask: false
+    stats: [mean]
     compute_indices:
       - ET_RATIO
     output_bands:
@@ -76,4 +110,4 @@ sensors:
       # - ET_RATIO
     temporal:
       resample:
-        agg: "mean"             # average daily rate in period
+        agg: "mean"       # average daily rate in period

@@ -103,8 +103,16 @@ class DatasetPipeline:
         """
         cube = self.load(parcel_key, sensor)
 
-        # Mask before temporal compositing (exclude non-parcel pixels)
-        if geometry and self.config and self.config.parcel_mask:
+        # Mask before temporal compositing (exclude non-parcel pixels).
+        # Coarse-resolution sensors (S3, ERA5, MODIS) skip masking via
+        # per-sensor parcel_mask: false — their pixels are already larger
+        # than most parcels so geometry clipping produces empty/NaN cubes.
+        should_mask = (
+            geometry is not None
+            and self.config is not None
+            and self.config.mask_for(sensor)
+        )
+        if should_mask:
             cube = cube.mask(geometry)
 
         # Temporal compositing on raw bands (cube level)

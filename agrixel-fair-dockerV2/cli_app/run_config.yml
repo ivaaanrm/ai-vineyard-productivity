@@ -1,22 +1,19 @@
-start_date: "2020-01-01"
-end_date: "2020-01-31"
 equidistant: true
-num_samples: 2
-max_parallel: 3
+max_parallel: 5
 
 buffer_m: 100
 target_res_m: 10
 
 sensors:
-  # S2:
-  #   bands: [B02, B03, B04, B08, B11, B12]
-  #   cloud_cover: 20
-  # S1:
-  #   polarizations: [VV, VH]
+  S2:
+    bands: [B02, B03, B04, B08, B11, B12]
+    cloud_cover: 20
+  S1:
+    polarizations: [VV, VH]
   S3:
     products: [lst-in]
-  ERA5:
-    variable: tp
-    daily_agg: sum
-  MODIS:
-    products: [ET_500m, PET_500m]
+  # ERA5:
+  #   variable: tp
+  #   daily_agg: sum
+  # MODIS:
+  #   products: [ET_500m, PET_500m]

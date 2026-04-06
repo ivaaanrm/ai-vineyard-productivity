@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from datetime import date
 from pathlib import Path
 from typing import Literal
 
 import yaml
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field
 
 
 class S2Config(BaseModel):
@@ -41,22 +40,13 @@ class SensorsConfig(BaseModel):
 
 
 class RunConfig(BaseModel):
-    start_date: date
-    end_date: date
-    equidistant: bool = False
-    num_samples: int = Field(default=12, ge=1)
+    equidistant: bool = True
     max_parallel: int = Field(default=3, ge=1)
 
     buffer_m: int = Field(default=100, ge=0)
     target_res_m: int | None = None
 
     sensors: SensorsConfig
-
-    @model_validator(mode="after")
-    def _validate_dates(self) -> "RunConfig":
-        if self.start_date > self.end_date:
-            raise ValueError("start_date must be before or equal to end_date")
-        return self
 
     def enabled_sensors(self) -> dict[str, BaseModel]:
         """Return dict of sensor_key -> config for sensors that are not None."""

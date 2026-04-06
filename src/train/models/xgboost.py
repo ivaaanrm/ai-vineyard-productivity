@@ -19,8 +19,8 @@ class XGBoostModel:
         self._params = params
         self._model = XGBRegressor(**params)
 
-    def fit(self, X: np.ndarray, y: np.ndarray) -> None:
-        self._model.fit(X, y)
+    def fit(self, X: np.ndarray, y: np.ndarray, **kwargs: Any) -> None:
+        self._model.fit(X, y, **kwargs)
 
     def predict(self, X: np.ndarray) -> np.ndarray:
         return self._model.predict(X)
@@ -31,6 +31,12 @@ class XGBoostModel:
     @property
     def feature_importances(self) -> np.ndarray:
         return self._model.feature_importances_
+
+    @property
+    def evals_result(self) -> Dict[str, Any] | None:
+        """Return per-round eval metrics if eval_set was used during fit."""
+        result = self._model.evals_result()
+        return result if result else None
 
     def save(self, path: Path) -> Path:
         path = Path(path)
