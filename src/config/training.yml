@@ -40,3 +40,10 @@ models:
       max_samples: 0.8
       criterion: absolute_error
       random_state: 42
+
+# ── MLflow ────────────────────────────────────────────────────────────
+mlflow:
+  enabled: true
+  tracking_uri: mlruns
+  experiment_name: vineyard-productivity
+  log_artifacts: true
