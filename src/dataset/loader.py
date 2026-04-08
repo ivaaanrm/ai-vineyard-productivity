@@ -9,7 +9,7 @@ from shapely import wkt
 
 import xarray as xr
 
-from .temporal import resample_cube, rolling_cube
+from .temporal import resample_cube, rolling_cube, smooth_dataset
 
 if TYPE_CHECKING:
     from .sensors import IndexCalculator
@@ -141,18 +141,27 @@ class SampleCube:
         """
 
         ds = self._ds
-        if config.resample is not None:
-            # Cube-level compositing uses a single aggregation per variable;
-            # list aggs (e.g. [sum] for ERA5) are normalised to a string so
-            # that band names are preserved for downstream index computation.
+
+        # If both resample and rolling are configured, use smooth (resample + per-year rolling)
+        if config.resample is not None and config.rolling is not None:
             agg = config.resample.agg
             if isinstance(agg, list):
                 agg = agg[0]
-            ds = resample_cube(ds, config.resample.freq, agg)
-        if config.rolling is not None:
-            ds = rolling_cube(
-                ds, config.rolling.window, config.rolling.min_periods, config.rolling.agg
+            ds = smooth_dataset(
+                ds, config.resample.freq, config.rolling.window, agg
             )
+        else:
+            # Fall back to sequential resample then rolling
+            if config.resample is not None:
+                agg = config.resample.agg
+                if isinstance(agg, list):
+                    agg = agg[0]
+                ds = resample_cube(ds, config.resample.freq, agg)
+            if config.rolling is not None:
+                ds = rolling_cube(
+                    ds, config.rolling.window, config.rolling.min_periods, config.rolling.agg
+                )
+
         return SampleCube(ds, sensor=self.sensor, parcel_key=self.parcel_key)
 
     def compute_indices(self, calculators: List[IndexCalculator]) -> None:

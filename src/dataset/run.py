@@ -28,7 +28,7 @@ class DatasetProcessor:
         self.df = df
 
     def run(self) -> pd.DataFrame:
-        parcel_ids = self.df["parcel_id"].tolist() # TODO: Remove
+        parcel_ids = self.df["parcel_id"].tolist()[:1] # TODO: Remove
         geometries = (
             dict(zip(self.df["parcel_id"], self.df["parcel_geometry"]))
             if "parcel_geometry" in self.df.columns
@@ -65,7 +65,7 @@ def main(config_path: str | None = None):
 
     output_dir = config.output_dir or str(ROOT / "experiments" / "data")
     export(
-        round(df_processed, 2),
+        round(df_processed, 4),
         output_dir=output_dir,
         name="dataset",
         config=config,

@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Dict, List, Union
 
 import yaml
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 from .sensors import ALL_CALCULATORS, IndexCalculator
 
@@ -51,7 +51,7 @@ class TemporalConfig(BaseModel):
 
 
 class SensorConfig(BaseModel):
-    compute_indices: List[str]
+    compute_indices: List[str] = Field(default_factory=list)
     output_bands: List[str]
     stats: List[str] | None = None                    # None → inherit global stats
     temporal: TemporalConfig | None = None            # None → inherit global temporal
