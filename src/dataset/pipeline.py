@@ -113,7 +113,8 @@ class DatasetPipeline:
             and self.config.mask_for(sensor)
         )
         if should_mask:
-            cube = cube.mask(geometry)
+            erosion = self.config.erosion_for(sensor) if self.config else 0.0
+            cube = cube.mask(geometry, erosion_pixels=erosion)
 
         # Temporal compositing on raw bands (cube level)
         temporal_cfg = self.config.temporal_for(sensor) if self.config else None

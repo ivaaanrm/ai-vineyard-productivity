@@ -69,7 +69,7 @@ class SampleCube:
     def has_band(self, name: str) -> bool:
         return name in self._ds.data_vars
 
-    def mask(self, geometry) -> "SampleCube":
+    def mask(self, geometry, erosion_pixels: float = 0.0) -> "SampleCube":
         """Return a new SampleCube with pixels outside *geometry* set to NaN.
 
         Both the cube and geometry are expected to share the same CRS
@@ -78,6 +78,12 @@ class SampleCube:
         When the geometry falls outside the cube extent (common for
         coarse-resolution sensors like S3 / ERA5 / MODIS), the nearest
         pixel to the geometry centroid is kept instead.
+
+        Args:
+            geometry: WKT string or Shapely geometry to use for clipping.
+            erosion_pixels: Number of pixels to erode the geometry inward (default 0).
+                When > 0, the geometry is shrunk inward by this many pixels before
+                clipping, to exclude border pixels that partially cover non-parcel area.
         """
         if isinstance(geometry, str):
             geometry = wkt.loads(geometry)
@@ -86,16 +92,22 @@ class SampleCube:
         ds = ds.rio.write_crs("EPSG:3857")
         ds = ds.rio.set_spatial_dims(x_dim="x", y_dim="y")
 
-        # Buffer by one pixel so small parcels aren't clipped to nothing
         x_res = abs(float(ds.coords["x"][1] - ds.coords["x"][0]))
-        buffered = geometry.buffer(x_res)
+
+        # Inward erosion to exclude border pixels (if requested)
+        if erosion_pixels > 0:
+            eroded = geometry.buffer(-erosion_pixels * x_res)
+            clip_geom = eroded if not eroded.is_empty else geometry
+        else:
+            # No erosion: expand outward by one pixel so small parcels aren't lost
+            clip_geom = geometry.buffer(x_res)
 
         # Try clipping; fall back to nearest pixel if geometry doesn't
         # intersect the cube (e.g. coarse-resolution sensors).
         clipped = None
         try:
             clipped = ds.rio.clip(
-                [buffered], crs="EPSG:3857", drop=False, all_touched=True
+                [clip_geom], crs="EPSG:3857", drop=False, all_touched=True
             )
         except Exception:
             pass
