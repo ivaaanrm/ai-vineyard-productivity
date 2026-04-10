@@ -1,17 +1,23 @@
 # ── I/O ──────────────────────────────────────────────────────────────
 # inputs:  dataset_csv, targets_csv
 # outputs: output_dir/features.csv
-dataset_csv: experiments/EXP_20260330/data/dataset.csv
+dataset_csv: data/experiments/EXP_20260410/dataset.csv
 targets_csv: data/datasets/raw/SAMPLED_SPLITS_DATASET.csv
-output_dir: null  # null → same dir as dataset_csv
-max_null_pct: 10.0
+output_dir: data/experiments/EXP_20260410  # null → same dir as dataset_csv
+max_null_pct: 30.0
+interpolate_missing: true
 
 columns:
-  - B02_mean
-  - B03_mean
-  - B04_mean
-  - B08_mean
-  - B11_mean
+  - B02
+  - B03
+  - B04
+  - B05
+  - B06
+  - B07
+  - B08
+  - B11
+  - NDVI
+  - IRECI
   - VV
   - VH
   - LST_C

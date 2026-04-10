@@ -29,7 +29,7 @@ class DatasetProcessor:
         self.df = df
 
     def run(self) -> pd.DataFrame:
-        parcel_ids = self.df["parcel_id"].tolist()[:200]
+        parcel_ids = self.df["parcel_id"].tolist()
         geometries = (
             dict(zip(self.df["parcel_id"], self.df["parcel_geometry"]))
             if "parcel_geometry" in self.df.columns

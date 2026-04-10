@@ -53,6 +53,13 @@ class TrainingPipeline:
             f" ({df.shape[0]} rows, {df.shape[1]} cols)"
         )
 
+        feature_cols = self._get_feature_columns(df)
+        nan_rows = df[feature_cols].isna().any(axis=1)
+        if nan_rows.any():
+            dropped = df[nan_rows][["parcel_id", "year"]].values.tolist()
+            print(f"       Dropping {nan_rows.sum()} rows with unrecoverable NaN: {dropped}")
+            df = df[~nan_rows].reset_index(drop=True)
+
         if self.config.dry_run:
             return [self._dry_run(df)]
 
@@ -302,20 +309,7 @@ class TrainingPipeline:
         return df_train, df_val, df_test, split_info
 
     def _get_feature_columns(self, df: pd.DataFrame) -> List[str]:
-        """Return feature columns: from file if configured, else auto-detect."""
-        if self.config.feature_columns_file:
-            path = Path(self.config.feature_columns_file)
-            cols = [line.strip() for line in path.read_text().splitlines() if line.strip()]
-            present = [c for c in cols if c in df.columns]
-            missing = set(cols) - set(present)
-            if missing:
-                print(
-                    f"       WARNING: {len(missing)} columns from"
-                    f" {path.name} not found in data: {sorted(missing)}"
-                )
-            print(f"       Using {len(present)}/{len(cols)} columns from {path.name}")
-            return present
-
+        """Return all numeric columns that are not targets or metadata."""
         exclude = set(self.config.targets) | {"parcel_id", "year", "split"}
         return [
             c

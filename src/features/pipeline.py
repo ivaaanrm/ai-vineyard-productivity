@@ -49,7 +49,7 @@ class FeaturePipeline:
                 ``config.dataset_csv``.
         """
         if df is None:
-            df = pd.read_csv(self.config.dataset_csv, parse_dates=["time"])
+            df = pd.read_csv(self.config.dataset_csv)
 
         targets_df = pd.read_csv(self.config.targets_csv)
 
@@ -60,8 +60,9 @@ class FeaturePipeline:
             and "harvest_date" in targets_df.columns
         ):
             df = df.copy()
-            df["time"] = pd.to_datetime(df["time"])
-            df["year"] = df["time"].dt.year
+            if "time" in df.columns:
+                df["time"] = pd.to_datetime(df["time"])
+                df["year"] = df["time"].dt.year
             hd = (
                 targets_df[self.config.merge_columns + ["harvest_date"]]
                 .drop_duplicates()
@@ -75,14 +76,22 @@ class FeaturePipeline:
     def extract_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """Extract features only (no target merge).  Useful for inference."""
         df = df.copy()
-        df["time"] = pd.to_datetime(df["time"])
-        df["year"] = df["time"].dt.year
-        df["month"] = df["time"].dt.month
+        if "time" in df.columns:
+            df["time"] = pd.to_datetime(df["time"])
+            df["year"] = df["time"].dt.year
+            df["month"] = df["time"].dt.month
 
         records: list[Dict[str, object]] = []
         for (parcel_id, year), group in df.groupby(["parcel_id", "year"]):
             row: Dict[str, object] = {"parcel_id": parcel_id, "year": year}
-            sorted_group = group.sort_values("month")
+            sorted_group = group.sort_values("month").reset_index(drop=True)
+
+            if self.config.interpolate_missing:
+                num_cols = [c for c in self.config.columns if c in sorted_group.columns]
+                sorted_group[num_cols] = (
+                    sorted_group[num_cols]
+                    .interpolate(method="linear", limit_direction="both")
+                )
 
             for extractor, columns in self._extractors:
                 valid_cols = [c for c in columns if c in sorted_group.columns]

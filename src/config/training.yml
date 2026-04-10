@@ -1,9 +1,8 @@
 # ── I/O ──────────────────────────────────────────────────────────────
 # inputs:  features_csv, feature_columns_file (optional)
 # outputs: experiment_directory/<model>_<ts>/
-features_csv: experiments/EXP_20260330/data/features.csv
-# feature_columns_file: experiments/PRUEBA00/data/train_columns.txt
-experiment_directory: experiments/EXP_20260330
+features_csv: data/experiments/EXP_20260410/features_train.csv
+experiment_directory: data/experiments/EXP_20260410/models
 
 dry_run: false
 targets:
@@ -30,10 +29,10 @@ models:
       random_state: 42
 
   random_forest:
-    enabled: false
+    enabled: true
     params:
-      n_estimators: [200, 500]
-      max_depth: [6, 8]
+      n_estimators: [500, 1000]
+      max_depth: [6, 8, 10]
       min_samples_split: 15
       min_samples_leaf: 5
       max_features: 0.4
