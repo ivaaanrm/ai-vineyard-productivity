@@ -1,14 +1,14 @@
 # ── I/O ──────────────────────────────────────────────────────────────
 # inputs:  paths.aoi_table, raw zarr cubes
 # outputs: output_dir/dataset.csv
-output_dir: null  # null → experiments/data
+output_dir: data/experiments/EXP_20260410  # null → experiments/data
 
 parcel_mask: true
 mask_erosion_pixels: 0.0  # inward erosion of geometry in pixels; 0 = no erosion
 fuse_sensors: true
 
 paths:
-  aoi_table: agrixel-fair-dockerV2/data/input/aoi_table.csv
+  aoi_table: data/aoi_table.csv
 
 # Temporal aggregation (optional)
 temporal:
@@ -38,7 +38,7 @@ sensors:
       # - p90
     compute_indices:
       - NDVI
-      # - NDRE    # most sensitive to LAI in vineyards
+      - NDRE    # most sensitive to LAI in vineyards
       - IRECI   # better yield predictor than NDVI
       # - S2REP   # water stress and nitrogen
       # - GVMI   # canopy moisture / substrate indicator

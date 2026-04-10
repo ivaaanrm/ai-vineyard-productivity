@@ -75,9 +75,10 @@ def export(
 
     csv_path = output_dir / f"{name}.csv"
     meta_path = output_dir / f"{name}_metadata.json"
-
+    print("Exported to: ", csv_path)
     df.to_csv(csv_path, index=False)
 
+    # Metadata
     metadata: Dict[str, Any] = {"columns": {}}
     for col in df.columns:
         info: Dict[str, Any] = {"unit": _unit_for_column(col)}
@@ -92,6 +93,7 @@ def export(
     with open(meta_path, "w") as f:
         json.dump(metadata, f, indent=4, default=str)
 
+    # Config
     if config is not None:
         config_path = output_dir / f"{name}_config.json"
         dump = config.model_dump() if hasattr(config, "model_dump") else config

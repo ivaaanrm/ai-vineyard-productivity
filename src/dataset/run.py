@@ -1,7 +1,8 @@
 import sys
-import pandas as pd
 from pathlib import Path
 from typing import List
+
+import pandas as pd
 
 ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(ROOT))
@@ -11,7 +12,7 @@ from src.dataset.pipeline import DatasetPipeline, make_pipeline_from_config
 from src.utils.export import export
 
 IMAGES = ROOT / "images/dataset"
-BASE = str(ROOT / "agrixel-fair-dockerV2/data/output/files")
+BASE = str(ROOT / "data/output/files")
 DEFAULT_CONFIG = str(ROOT / "src/config/dataset.yml")
 SENSORS = [
     "SENTINEL-2",
@@ -28,7 +29,7 @@ class DatasetProcessor:
         self.df = df
 
     def run(self) -> pd.DataFrame:
-        parcel_ids = self.df["parcel_id"].tolist()
+        parcel_ids = self.df["parcel_id"].tolist()[:200]
         geometries = (
             dict(zip(self.df["parcel_id"], self.df["parcel_geometry"]))
             if "parcel_geometry" in self.df.columns
@@ -64,7 +65,8 @@ def main(config_path: str | None = None):
     print(round(df_processed, 2))
 
     output_dir = config.output_dir or str(ROOT / "experiments" / "data")
-    export(
+    
+    dataset_file = export(
         round(df_processed, 4),
         output_dir=output_dir,
         name="dataset",
