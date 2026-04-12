@@ -55,40 +55,20 @@ class DatasetPipeline:
         self.stats = config.stats if config else (stats or ["mean", "std"])
         self.extra_calculators = extra_calculators or []
 
-    def _calculators_for(self, sensor: str) -> List[IndexCalculator]:
-        if self.config:
-            return self.config.calculators_for(sensor) + self.extra_calculators
-        return _SENSOR_CALCULATORS.get(sensor, []) + self.extra_calculators
-
-    def _output_bands_for(self, sensor: str) -> List[str] | None:
-        if self.config:
-            return self.config.output_bands_for(sensor)
-        return None
-
-    def load(self, parcel_key: str, sensor: str):
+    def load(self, parcel_key: str, sensor: str, single: bool = False):
         """Load a SampleCube with sensor preprocessing applied (no indices)."""
         cube = self.loader.load(parcel_key, sensor)
         preprocessor = SENSOR_PREPROCESSORS.get(sensor)
         if preprocessor:
             preprocessor(cube)
+
+        if single:
+            cube.compute_indices(self._calculators_for(sensor))
+            postprocessor = SENSOR_POSTPROCESSORS.get(sensor)
+            if postprocessor:
+                postprocessor(cube)
+
         return cube
-
-    def load_with_indices(self, parcel_key: str, sensor: str):
-        """Load a SampleCube with preprocessing and indices computed.
-
-        Convenience method for exploratory / notebook use.
-        """
-        cube = self.load(parcel_key, sensor)
-        cube.compute_indices(self._calculators_for(sensor))
-        postprocessor = SENSOR_POSTPROCESSORS.get(sensor)
-        if postprocessor:
-            postprocessor(cube)
-        return cube
-
-    def _stats_for(self, sensor: str) -> List[str]:
-        if self.config:
-            return self.config.stats_for(sensor)
-        return self.stats
 
     def process(
         self,
@@ -143,23 +123,23 @@ class DatasetPipeline:
         sensors: List[str],
         geometries: Dict[str, str] | None = None,
     ) -> pd.DataFrame:
-        """Process multiple parcel/sensor pairs and concatenate results.
 
-        Args:
-            geometries: Optional mapping of parcel_key → WKT geometry string.
-                Used for spatial masking when ``parcel_mask`` is enabled in config.
-
-        Silently skips combinations where no zarr store exists.
-        """
         frames: List[pd.DataFrame] = []
+        error_frames = []
         for parcel_key in tqdm(parcel_keys, desc="Computing parcels"):
-            geometry = geometries.get(parcel_key) if geometries else None
-            for sensor in sensors:
-                try:
-                    frames.append(self.process(parcel_key, sensor, geometry=geometry))
-                except FileNotFoundError:
-                    pass
-                
+            try:
+                geometry = geometries.get(parcel_key) if geometries else None
+                for sensor in sensors:
+                    try:
+                        frames.append(self.process(parcel_key, sensor, geometry=geometry))
+                    except FileNotFoundError:
+                        pass
+            except Exception as e:
+                print(e)
+                error_frames.append(parcel_key)
+        
+        print("Parcel with errors: ", error_frames)
+
         df = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
         if not df.empty and self.config and self.config.fuse_sensors:
             df = self._fuse_sensors(df)
@@ -168,13 +148,28 @@ class DatasetPipeline:
     @staticmethod
     def _fuse_sensors(df: pd.DataFrame) -> pd.DataFrame:
         """Collapse multiple sensor rows into one row per (parcel_key, time)."""
-        group_cols = ["parcel_id", "time"]
+        group_cols = ["parcel_id", "year", "month"]
         agg = {}
         for col in df.columns:
             if col in group_cols or col == "sensor":
                 continue
             agg[col] = "sum" if col == "n_samples" else "first"
         return df.groupby(group_cols, sort=False).agg(agg).reset_index()
+
+    def _calculators_for(self, sensor: str) -> List[IndexCalculator]:
+        if self.config:
+            return self.config.calculators_for(sensor) + self.extra_calculators
+        return _SENSOR_CALCULATORS.get(sensor, []) + self.extra_calculators
+
+    def _output_bands_for(self, sensor: str) -> List[str] | None:
+        if self.config:
+            return self.config.output_bands_for(sensor)
+        return None
+
+    def _stats_for(self, sensor: str) -> List[str]:
+        if self.config:
+            return self.config.stats_for(sensor)
+        return self.stats
 
 
 def make_pipeline(

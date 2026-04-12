@@ -1,14 +1,14 @@
 # ── I/O ──────────────────────────────────────────────────────────────
 # inputs:  paths.aoi_table, raw zarr cubes
 # outputs: output_dir/dataset.csv
-output_dir: null  # null → experiments/data
+output_dir: data/experiments/EXP_20260410  # null → experiments/data
 
 parcel_mask: true
 mask_erosion_pixels: 0.0  # inward erosion of geometry in pixels; 0 = no erosion
 fuse_sensors: true
 
 paths:
-  aoi_table: agrixel-fair-dockerV2/data/input/aoi_table.csv
+  aoi_table: data/aoi_table.csv
 
 # Temporal aggregation (optional)
 temporal:
@@ -30,7 +30,7 @@ sensors:
     # 10m optical — bimodal soil/canopy distribution within the parcel.
     # p75 targets the vine canopy cluster; p90 captures dense-canopy pixels.
     # mean kept as the full mixed signal; std captures row structure.
-    mask_erosion_pixels: 1.0  # shrink 1 pixel (~10m) inward — excludes row-edge pixels
+    mask_erosion_pixels: 2.0  # shrink 1 pixel (~10m) inward — excludes row-edge pixels
     stats:
       - mean
       # - std
@@ -38,23 +38,23 @@ sensors:
       # - p90
     compute_indices:
       - NDVI
-      # - NDRE    # most sensitive to LAI in vineyards
+      - NDRE    # most sensitive to LAI in vineyards
       - IRECI   # better yield predictor than NDVI
       # - S2REP   # water stress and nitrogen
-      # - GVMI   # canopy moisture / substrate indicator
+      - GVMI   # canopy moisture / substrate indicator
       # - EVI
       # - EVI2   # 2-band EVI, more stable than NDVI across years
       # - SAVI
       # - NDWI
-      # - GNDVI  # chlorophyll concentration 
+      - GNDVI  # chlorophyll concentration 
     output_bands:
       - NDVI
-      # - NDRE
+      - NDRE
       - IRECI
       # - S2REP
       # - EVI2
-      # - GVMI
-      # - GNDVI
+      - GVMI
+      - GNDVI
       # - EVI
       # - SAVI
       # - NBR2
@@ -63,27 +63,27 @@ sensors:
       - B03   # Green
       - B04   # Red
       - B05   # Red Edge 1 (for NDRE, IRECI, S2REP)
-      - B06   # Red Edge 2 (for IRECI, S2REP)
-      - B07   # Red Edge 3 (for IRECI)
+      # - B06   # Red Edge 2 (for IRECI, S2REP)
+      # - B07   # Red Edge 3 (for IRECI)
       - B08   # NIR
       - B11   # SWIR1
 
   SENTINEL-1:
     # 10m SAR — volume scattering integrates soil+canopy; soil moisture signal
     # is agronomically meaningful. p75/p90 risk picking up trellis double-bounce.
-    mask_erosion_pixels: 1.0  # shrink 1 pixel (~10m) inward
+    mask_erosion_pixels: 2.0  # shrink 1 pixel (~10m) inward
     stats:
       - mean
       # - std
     compute_indices:
       - RVI
-      # - VH_VV
+      - VH_VV
       # - DpRVI
     output_bands:
       - VV
       - VH
-      # - RVI
-      # - VH_VV
+      - RVI
+      - VH_VV
       # - DpRVI
 
   SENTINEL-3:

@@ -20,7 +20,7 @@ class MLflowConfig(BaseModel):
     """MLflow tracking configuration."""
 
     enabled: bool = False
-    tracking_uri: str = "mlruns"
+    tracking_uri: str = "sqlite:///mlruns.db"
     experiment_name: str = "vineyard-productivity"
     log_artifacts: bool = True
 
@@ -29,8 +29,8 @@ class TrainingConfig(BaseModel):
     """Top-level training config."""
 
     features_csv: str
-    feature_columns_file: str | None = None  # path to .txt with one column name per line
-    targets: List[str] = ["yield_kg_ha", "alcohol_degree"]
+    targets: List[str] = ["yield_T_ha", "alcohol_degree"]
+    log_transform_target: bool = False  # train on log(target), report metrics in original scale
     split_column: str | None = "split"
     test_size: float = 0.2
     random_state: int = 42

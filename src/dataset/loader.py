@@ -5,13 +5,13 @@ from typing import TYPE_CHECKING, List, Protocol
 
 import numpy as np
 import rioxarray  # noqa: F401 (registers .rio accessor)
+import xarray as xr
 from shapely import wkt
 
-import xarray as xr
-
-from .temporal import resample_cube, rolling_cube, smooth_dataset
+from .temporal import smooth_dataset
 
 if TYPE_CHECKING:
+    from .config import TemporalConfig
     from .sensors import IndexCalculator
 
 
@@ -39,7 +39,9 @@ class SampleCube:
         cube.ds.NDVI.mean(["x", "y"]).plot.line("b-^", figsize=(11, 4))
     """
 
-    def __init__(self, ds: xr.Dataset, sensor: str, parcel_key: str, parcel_mask:str=None) -> None:
+    def __init__(
+        self, ds: xr.Dataset, sensor: str, parcel_key: str, parcel_mask: str = None
+    ) -> None:
         self.sensor = sensor
         self.parcel_key = parcel_key
         # Accept raw 4D zarr format (time, variable, y, x) or standard Dataset
@@ -107,7 +109,7 @@ class SampleCube:
         clipped = None
         try:
             clipped = ds.rio.clip(
-                [clip_geom], crs="EPSG:3857", drop=False, all_touched=True
+                [clip_geom], crs="EPSG:3857", drop=True, all_touched=True
             )
         except Exception:
             pass
@@ -118,9 +120,7 @@ class SampleCube:
             cx, cy = geometry.centroid.x, geometry.centroid.y
             ix = int((abs(x - cx)).argmin())
             iy = int((abs(y - cy)).argmin())
-            mask_arr = xr.zeros_like(
-                ds[list(ds.data_vars)[0]].isel(time=0), dtype=bool
-            )
+            mask_arr = xr.zeros_like(ds[list(ds.data_vars)[0]].isel(time=0), dtype=bool)
             mask_arr[iy, ix] = True
             clipped = ds.where(mask_arr)
 
@@ -130,16 +130,7 @@ class SampleCube:
         """Replace an existing band's data in place."""
         self._ds[name] = new_da
 
-    def composite_temporal(self, config) -> "SampleCube":
-        """Return a new SampleCube with temporal compositing applied.
-
-        Args:
-            config: A :class:`TemporalConfig` with resample and/or rolling settings.
-
-        Returns:
-            A new SampleCube (the original is not modified).
-        """
-
+    def composite_temporal(self, config: TemporalConfig) -> "SampleCube":
         ds = self._ds
 
         # If both resample and rolling are configured, use smooth (resample + per-year rolling)
@@ -147,20 +138,10 @@ class SampleCube:
             agg = config.resample.agg
             if isinstance(agg, list):
                 agg = agg[0]
-            ds = smooth_dataset(
-                ds, config.resample.freq, config.rolling.window, agg
-            )
+            ds = smooth_dataset(ds, config.resample.freq, config.rolling.window, agg)
         else:
-            # Fall back to sequential resample then rolling
-            if config.resample is not None:
-                agg = config.resample.agg
-                if isinstance(agg, list):
-                    agg = agg[0]
-                ds = resample_cube(ds, config.resample.freq, agg)
-            if config.rolling is not None:
-                ds = rolling_cube(
-                    ds, config.rolling.window, config.rolling.min_periods, config.rolling.agg
-                )
+            raise Exception("Rolling not configured")
+
 
         return SampleCube(ds, sensor=self.sensor, parcel_key=self.parcel_key)
 
@@ -171,7 +152,10 @@ class SampleCube:
         name already exists as a variable.
         """
         for calc in calculators:
-            if calc.name in self._ds.data_vars and not self._ds[calc.name].isnull().all():
+            if (
+                calc.name in self._ds.data_vars
+                and not self._ds[calc.name].isnull().all()
+            ):
                 continue
             if not calc.supports(self):
                 continue

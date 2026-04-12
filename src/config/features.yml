@@ -1,50 +1,74 @@
 # ── I/O ──────────────────────────────────────────────────────────────
 # inputs:  dataset_csv, targets_csv
 # outputs: output_dir/features.csv
-dataset_csv: experiments/EXP_20260330/data/dataset.csv
-targets_csv: data/datasets/raw/SAMPLED_SPLITS_DATASET.csv
+dataset_csv: data/experiments/EXP_20260412/dataset.csv
+targets_csv: data/datasets/1000_METADATA.csv
 output_dir: null  # null → same dir as dataset_csv
-max_null_pct: 10.0
+max_null_pct: 30.0
+interpolate_missing: true
 
-columns:
-  - B02_mean
-  - B03_mean
-  - B04_mean
-  - B08_mean
-  - B11_mean
-  - VV
-  - VH
-  - LST_C
+columns: 
+  # - B02
+  # - B03
+  # - B04
+  # - B05
+  # - B06
+  # - B07
+  # - B08
+  # - B11
+  - NDVI
+  - IRECI
+  - GVMI
+  - GNDVI
+  # - VH_VV
+  # - VH
+  # - LST_C
 
 target_columns:
-  - yield_kg_ha
+  - yield_T_ha
+  - area_ha
+  - variety
+  # - planting_date
+  - province
+  # - certification
+  # - rainfed
 
 extractors:
-  monthly: true
+  monthly: false
 
-  # phenology_phases:
-  #   phases:
-  #     dormancy:     [1, 2]
-  #     budbreak:     [3, 4]
-  #     flowering:    [5, 6]
-  #     veraison:     [7, 8]
-  #     harvest:      [8, 9]
-  #     postharvest:  [10, 11]
-  #   aggs:
-  #     - mean
+  phenology_phases:
+    phases:
+      # dormancy:     [1, 2]
+      budbreak:     [3, 4]
+      flowering:    [5, 6]
+      veraison:     [7, 8]
+      harvest:      [8, 9]
+      # postharvest:  [10, 11]
+    aggs:
+      - mean
 
   temporal_deltas: false
   peak_metrics: false
 
   season_metrics: 
-  #   threshold_pct: 0.2
-  #   base_percentile: 10.0
-  #   columns:
-  #     - NDVI_mean
-  #     - RVI
+    # threshold_pct: 0.2
+    # base_percentile: 10.0
+    # columns:
+    #   - IRECI
 
   phase_delta:
   #   agg: mean
+
+  phase_integral:
+    columns:
+      # - NDVI
+      - IRECI
+      # - B05
+    phases:
+      # budbreak:  [3, 4]
+      flowering: [4, 5, 6]
+      veraison:  [6, 7, 8]
+    #   flowering_to_veraison: [4, 5, 6, 7, 8]
 
   boolean_features:
   #   early_peak_threshold: 8
@@ -52,6 +76,9 @@ extractors:
   harvest_date:
   #   pre_harvest_windows: [30, 60]
   #   columns:
-  #     - NDVI_mean
-  #     - NDVI_p75
-  #     - RVI_mean
+  #     - IRECI
+
+  static_features:
+    categorical_columns: [certification, variety]
+    planting_date_column: planting_date
+    rainfed_column: rainfed

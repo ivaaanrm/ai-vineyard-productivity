@@ -79,9 +79,11 @@ class ParcelStatsExtractor:
         records: List[Dict[str, Any]] = []
 
         for t_idx, t in enumerate(cube.times):
+            ts = pd.Timestamp(t)
             row: Dict[str, Any] = {
-                "time": pd.Timestamp(t).date(),
                 "parcel_id": cube.parcel_key,
+                "year": ts.year,
+                "month": ts.month,
                 "sensor": cube.sensor,
             }
             for layer_name, da in layers.items():

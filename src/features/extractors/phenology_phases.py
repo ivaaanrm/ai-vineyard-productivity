@@ -26,7 +26,7 @@ class PhenologyPhaseExtractor:
             for col in columns:
                 values = phase_data[col].dropna()
                 for agg in self.aggs:
-                    key = f"{col}_{phase_name}_{agg}"
+                    key = f"{col}_{phase_name}"
                     result[key] = (
                         float(getattr(values, agg)()) if len(values) > 0 else np.nan
                     )

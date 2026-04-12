@@ -1,13 +1,13 @@
 # ── I/O ──────────────────────────────────────────────────────────────
 # inputs:  features_csv, feature_columns_file (optional)
 # outputs: experiment_directory/<model>_<ts>/
-features_csv: experiments/EXP_20260330/data/features.csv
-# feature_columns_file: experiments/PRUEBA00/data/train_columns.txt
-experiment_directory: experiments/EXP_20260330
+features_csv: data/experiments/EXP_20260412/features.csv
+experiment_directory: data/experiments/EXP_20260412/models
 
 dry_run: false
 targets:
-  - yield_kg_ha
+  - yield_T_ha
+log_transform_target: true
 
 split_column: split
 test_size: 0.2
@@ -17,26 +17,26 @@ models:
   xgboost:
     enabled: true
     params:
-      n_estimators: [100, 500, 1000]
+      n_estimators: [200, 500, 1000]
       early_stopping_rounds: 50
       eval_metric: mae
-      max_depth: [3, 5]
+      max_depth: [3, 5, 7]
       learning_rate: [0.03, 0.05]
-      subsample: 0.7
-      colsample_bytree: 0.5
-      min_child_weight: 10
-      reg_alpha: 1.0
-      reg_lambda: 5.0
+      subsample: 0.8
+      colsample_bytree: 0.7
+      min_child_weight: [3, 5]
+      reg_alpha: 0.0
+      reg_lambda: 1.0
       random_state: 42
 
   random_forest:
-    enabled: false
+    enabled: true
     params:
-      n_estimators: [200, 500]
-      max_depth: [6, 8]
-      min_samples_split: 15
-      min_samples_leaf: 5
-      max_features: 0.4
+      n_estimators: [1000]
+      max_depth: [8, 10]
+      min_samples_split: 10
+      min_samples_leaf: [2, 3]
+      max_features: [0.3, 0.5]
       max_samples: 0.8
       criterion: absolute_error
       random_state: 42
@@ -44,6 +44,6 @@ models:
 # ── MLflow ────────────────────────────────────────────────────────────
 mlflow:
   enabled: true
-  tracking_uri: mlruns
+  tracking_uri: sqlite:///mlruns.db
   experiment_name: vineyard-productivity
   log_artifacts: true
