@@ -4,6 +4,7 @@
 output_dir: null  # null → experiments/data
 
 parcel_mask: true
+mask_erosion_pixels: 0.0  # inward erosion of geometry in pixels; 0 = no erosion
 fuse_sensors: true
 
 paths:
@@ -14,10 +15,10 @@ temporal:
   resample:
     freq: "ME"       # pandas offset: MS=month-start, 4W=4-weeks, 2W=biweekly, ME=month-end
     agg: "median"    # mean, median, min, max, sum, std
-  # rolling:
-  #   window: 2
-  #   min_periods: 1
-  #   agg: "mean"
+  rolling:
+    window: 2
+    min_periods: 1
+    agg: "median"    # centered rolling median per year
 
 # Global fallback — used for any sensor that does not declare its own stats
 stats:
@@ -29,13 +30,17 @@ sensors:
     # 10m optical — bimodal soil/canopy distribution within the parcel.
     # p75 targets the vine canopy cluster; p90 captures dense-canopy pixels.
     # mean kept as the full mixed signal; std captures row structure.
-    stats: 
+    mask_erosion_pixels: 1.0  # shrink 1 pixel (~10m) inward — excludes row-edge pixels
+    stats:
       - mean
       # - std
-      - p75
+      # - p75
       # - p90
     compute_indices:
       - NDVI
+      # - NDRE    # most sensitive to LAI in vineyards
+      - IRECI   # better yield predictor than NDVI
+      # - S2REP   # water stress and nitrogen
       # - GVMI   # canopy moisture / substrate indicator
       # - EVI
       # - EVI2   # 2-band EVI, more stable than NDVI across years
@@ -43,7 +48,10 @@ sensors:
       # - NDWI
       # - GNDVI  # chlorophyll concentration 
     output_bands:
-      # - NDVI
+      - NDVI
+      # - NDRE
+      - IRECI
+      # - S2REP
       # - EVI2
       # - GVMI
       # - GNDVI
@@ -51,16 +59,20 @@ sensors:
       # - SAVI
       # - NBR2
       # - NDWI
-      - B02
-      - B03
+      - B02   # Blue
+      - B03   # Green
       - B04   # Red
+      - B05   # Red Edge 1 (for NDRE, IRECI, S2REP)
+      - B06   # Red Edge 2 (for IRECI, S2REP)
+      - B07   # Red Edge 3 (for IRECI)
       - B08   # NIR
       - B11   # SWIR1
 
   SENTINEL-1:
     # 10m SAR — volume scattering integrates soil+canopy; soil moisture signal
     # is agronomically meaningful. p75/p90 risk picking up trellis double-bounce.
-    stats: 
+    mask_erosion_pixels: 1.0  # shrink 1 pixel (~10m) inward
+    stats:
       - mean
       # - std
     compute_indices:

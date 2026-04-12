@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Dict, List, Union
 
 import yaml
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 from .sensors import ALL_CALCULATORS, IndexCalculator
 
@@ -51,11 +51,12 @@ class TemporalConfig(BaseModel):
 
 
 class SensorConfig(BaseModel):
-    compute_indices: List[str]
+    compute_indices: List[str] = Field(default_factory=list)
     output_bands: List[str]
-    stats: List[str] | None = None          # None → inherit global stats
-    temporal: TemporalConfig | None = None  # None → inherit global temporal
-    parcel_mask: bool | None = None         # None → inherit global parcel_mask
+    stats: List[str] | None = None                    # None → inherit global stats
+    temporal: TemporalConfig | None = None            # None → inherit global temporal
+    parcel_mask: bool | None = None                   # None → inherit global parcel_mask
+    mask_erosion_pixels: float | None = None          # None → inherit global mask_erosion_pixels
 
     @model_validator(mode="after")
     def _check_known_indices(self) -> SensorConfig:
@@ -73,6 +74,7 @@ class DatasetConfig(BaseModel):
     sensors: Dict[str, SensorConfig]
     temporal: TemporalConfig | None = None
     parcel_mask: bool = False
+    mask_erosion_pixels: float = 0.0  # inward geometry erosion in pixels; 0 = no erosion
     fuse_sensors: bool = False
     output_dir: str | None = None  # explicit output directory; None → cwd
 
@@ -111,6 +113,16 @@ class DatasetConfig(BaseModel):
         if cfg and cfg.parcel_mask is not None:
             return cfg.parcel_mask
         return self.parcel_mask
+
+    def erosion_for(self, sensor: str) -> float:
+        """Return inward erosion margin (in pixels) for a sensor's geometry mask.
+
+        Per-sensor ``mask_erosion_pixels`` takes priority; falls back to global.
+        """
+        cfg = self.sensors.get(sensor)
+        if cfg and cfg.mask_erosion_pixels is not None:
+            return cfg.mask_erosion_pixels
+        return self.mask_erosion_pixels
 
     def temporal_for(self, sensor: str) -> TemporalConfig | None:
         """Return temporal config for a sensor (per-sensor override merged with global)."""

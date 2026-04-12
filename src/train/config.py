@@ -16,6 +16,15 @@ class ModelConfig(BaseModel):
     params: Dict[str, Any] = {}
 
 
+class MLflowConfig(BaseModel):
+    """MLflow tracking configuration."""
+
+    enabled: bool = False
+    tracking_uri: str = "mlruns"
+    experiment_name: str = "vineyard-productivity"
+    log_artifacts: bool = True
+
+
 class TrainingConfig(BaseModel):
     """Top-level training config."""
 
@@ -28,6 +37,7 @@ class TrainingConfig(BaseModel):
     experiment_directory: str = "experiments"
     dry_run: bool = False
     models: Dict[str, ModelConfig] = {}
+    mlflow: MLflowConfig = MLflowConfig()
 
     @classmethod
     def from_yaml(cls, path: Path | str) -> TrainingConfig:

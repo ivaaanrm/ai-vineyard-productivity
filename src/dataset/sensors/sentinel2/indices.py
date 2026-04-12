@@ -1,4 +1,4 @@
-"""Sentinel-2 spectral index calculators: NDVI, EVI, EVI2, SAVI, NBR2, NDWI, GVMI, GNDVI.
+"""Sentinel-2 spectral index calculators: NDVI, EVI, EVI2, SAVI, NDWI, GVMI, GNDVI, NDRE, IRECI, S2REP.
 
 Preprocessing
 -------------
@@ -175,6 +175,76 @@ class GNDVI(IndexCalculator):
         return ((nir - green) / denom).where(denom != 0)
 
 
+class NDRE(IndexCalculator):
+    """Normalized Difference Red Edge = (B8A - B05) / (B8A + B05).
+
+    Most sensitive to LAI in vineyards. Uses vegetation red edge (B8A)
+    and red edge 1 (B05) for superior sensitivity to leaf area and
+    canopy development compared to NDVI.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            name="NDRE",
+            required_bands=["B8A", "B05"],
+            plot_style=PlotStyle(cmap="RdYlGn", vmin=-1.0, vmax=1.0),
+        )
+
+    def compute(self, cube: SampleCube) -> xr.DataArray:
+        vre = cube.band("B8A").astype("float32")  # Vegetation Red Edge (865 nm)
+        re1 = cube.band("B05").astype("float32")  # Red Edge 1 (705 nm)
+        denom = vre + re1
+        return ((vre - re1) / denom).where(denom != 0)
+
+
+class IRECI(IndexCalculator):
+    """Inverted Red-Edge Chlorophyll Index = (B07 - B04) / (B05 / B06).
+
+    Better predictor of yield than NDVI according to literature. Integrates
+    multiple red-edge bands for enhanced sensitivity to chlorophyll and
+    canopy stress.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            name="IRECI",
+            required_bands=["B07", "B04", "B05", "B06"],
+            plot_style=PlotStyle(cmap="RdYlGn", vmin=0.0, vmax=3.0),
+        )
+
+    def compute(self, cube: SampleCube) -> xr.DataArray:
+        re3 = cube.band("B07").astype("float32")  # Red Edge 3 (783 nm)
+        red = cube.band("B04").astype("float32")  # Red (665 nm)
+        re1 = cube.band("B05").astype("float32")  # Red Edge 1 (705 nm)
+        re2 = cube.band("B06").astype("float32")  # Red Edge 2 (740 nm)
+        denom = re1 / re2
+        return ((re3 - red) / denom).where(denom != 0)
+
+
+class S2REP(IndexCalculator):
+    """Sentinel-2 Red Edge Position = 705 + 35 * ((B04+B08)/2 - B05) / (B06 - B05).
+
+    Detects water stress and nitrogen status. Red edge position shifts toward
+    longer wavelengths under water stress and nitrogen deficiency, making this
+    a physically-based indicator of crop condition.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            name="S2REP",
+            required_bands=["B04", "B05", "B06", "B08"],
+            plot_style=PlotStyle(cmap="viridis", vmin=700.0, vmax=750.0),
+        )
+
+    def compute(self, cube: SampleCube) -> xr.DataArray:
+        red = cube.band("B04").astype("float32")  # Red (665 nm)
+        re1 = cube.band("B05").astype("float32")  # Red Edge 1 (705 nm)
+        re2 = cube.band("B06").astype("float32")  # Red Edge 2 (740 nm)
+        nir = cube.band("B08").astype("float32")  # NIR (842 nm)
+        denom = re2 - re1
+        return (705 + 35 * (((red + nir) / 2) - re1) / denom).where(denom != 0)
+
+
 S2_CALCULATORS: List[IndexCalculator] = [
     NDVI(),
     EVI(),
@@ -183,4 +253,7 @@ S2_CALCULATORS: List[IndexCalculator] = [
     NDWI(),
     GVMI(),
     GNDVI(),
+    NDRE(),
+    IRECI(),
+    S2REP(),
 ]
