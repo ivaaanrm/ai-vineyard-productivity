@@ -41,20 +41,20 @@ sensors:
       - NDRE    # most sensitive to LAI in vineyards
       - IRECI   # better yield predictor than NDVI
       # - S2REP   # water stress and nitrogen
-      # - GVMI   # canopy moisture / substrate indicator
+      - GVMI   # canopy moisture / substrate indicator
       # - EVI
       # - EVI2   # 2-band EVI, more stable than NDVI across years
       # - SAVI
       # - NDWI
-      # - GNDVI  # chlorophyll concentration 
+      - GNDVI  # chlorophyll concentration 
     output_bands:
       - NDVI
-      # - NDRE
+      - NDRE
       - IRECI
       # - S2REP
       # - EVI2
-      # - GVMI
-      # - GNDVI
+      - GVMI
+      - GNDVI
       # - EVI
       # - SAVI
       # - NBR2
@@ -77,13 +77,13 @@ sensors:
       # - std
     compute_indices:
       - RVI
-      # - VH_VV
+      - VH_VV
       # - DpRVI
     output_bands:
       - VV
       - VH
-      # - RVI
-      # - VH_VV
+      - RVI
+      - VH_VV
       # - DpRVI
 
   SENTINEL-3:

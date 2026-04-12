@@ -177,3 +177,4 @@ notebooks/older
 experiments/
 
 mlruns/
+mlruns.db

@@ -14,8 +14,10 @@ from .extractors import (
     MonthlyPivotExtractor,
     PeakMetricsExtractor,
     PhaseDeltaExtractor,
+    PhaseIntegralExtractor,
     PhenologyPhaseExtractor,
     SeasonMetricsExtractor,
+    StaticFeaturesProcessor,
     TemporalDeltaExtractor,
 )
 
@@ -71,6 +73,17 @@ class FeaturePipeline:
 
         features_df = self.extract_features(df)
         result = self._merge_targets(features_df, targets_df)
+
+
+        if self.config.extractors.static_features is not None:
+            cfg = self.config.extractors.static_features
+            processor = StaticFeaturesProcessor(
+                categorical_columns=cfg.categorical_columns,
+                planting_date_column=cfg.planting_date_column,
+                rainfed_column=cfg.rainfed_column,
+            )
+            result = processor.process(result)
+
         return self._drop_high_null_columns(result)
 
     def extract_features(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -138,6 +151,14 @@ class FeaturePipeline:
                 agg=cfg.phase_delta.agg,
             )
             extractors.append((ext, self.config.columns))
+
+        if cfg.phase_integral is not None:
+            cols = cfg.phase_integral.columns or self.config.columns
+            ext = PhaseIntegralExtractor(
+                phases=cfg.phase_integral.phases,
+                columns=cfg.phase_integral.columns,
+            )
+            extractors.append((ext, cols))
 
         if cfg.boolean_features is not None:
             ext = BooleanFeaturesExtractor(

@@ -45,6 +45,21 @@ class HarvestDateConfig(BaseModel):
     columns: List[str] | None = None  # None → use parent-level columns
 
 
+class PhaseIntegralConfig(BaseModel):
+    """Config for phase-scoped trapezoidal integral extractor."""
+
+    phases: Dict[str, List[int]] | None = None  # None → flowering + veraison defaults
+    columns: List[str] | None = None  # None → use parent-level columns
+
+
+class StaticFeaturesConfig(BaseModel):
+    """Config for static parcel feature encoding."""
+
+    categorical_columns: List[str] = ["certification", "variety"]
+    planting_date_column: str | None = "planting_date"
+    rainfed_column: str | None = "rainfed"
+
+
 class ExtractorsConfig(BaseModel):
     """Which extractors to run and their parameters."""
 
@@ -54,8 +69,10 @@ class ExtractorsConfig(BaseModel):
     peak_metrics: bool = True
     season_metrics: SeasonMetricsConfig | None = SeasonMetricsConfig()
     phase_delta: PhaseDeltaConfig | None = None
+    phase_integral: PhaseIntegralConfig | None = None
     boolean_features: BooleanFeaturesConfig | None = None
     harvest_date: HarvestDateConfig | None = None
+    static_features: StaticFeaturesConfig | None = None
 
 
 class FeaturesConfig(BaseModel):

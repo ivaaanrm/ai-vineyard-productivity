@@ -15,6 +15,8 @@ class MonthlyPivotExtractor:
         result: dict[str, float] = {}
         for _, row in group.iterrows():
             m = int(row["month"])
+            if m not in range(3,10): 
+                continue
             for col in columns:
                 result[f"{col}_m{m}"] = (
                     float(row[col]) if pd.notna(row[col]) else np.nan
