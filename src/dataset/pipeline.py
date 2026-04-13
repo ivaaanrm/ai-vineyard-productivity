@@ -7,7 +7,8 @@ from tqdm import tqdm
 import pandas as pd
 
 from .config import DatasetConfig
-from .loader import SampleLoaderProtocol, ZarrBandLoader
+from .loader import SampleCube, SampleLoaderProtocol, ZarrBandLoader
+from .sensors.era5 import ERA5TimeseriesLoader
 from .sensors import (
     S1_CALCULATORS,
     S2_CALCULATORS,
@@ -193,3 +194,94 @@ def make_pipeline_from_config(
     if not isinstance(config, DatasetConfig):
         config = DatasetConfig.from_yaml(config)
     return DatasetPipeline(loader=ZarrBandLoader(base_path), config=config)
+
+
+class CompositeLoader:
+    """Routes ``load()`` calls to sensor-specific loaders.
+
+    Useful for mixing loaders with different storage backends, e.g. a
+    ``ZarrBandLoader`` for optical/SAR data and an ``ERA5TimeseriesLoader``
+    for climate reanalysis files.
+
+    Parameters
+    ----------
+    loaders:
+        Mapping of sensor name → loader instance.
+    default:
+        Fallback loader for sensors not present in *loaders*.  If ``None``
+        and the sensor is not found, a ``ValueError`` is raised.
+    """
+
+    def __init__(
+        self,
+        loaders: Dict[str, SampleLoaderProtocol],
+        default: SampleLoaderProtocol | None = None,
+    ) -> None:
+        self.loaders = loaders
+        self.default = default
+
+    def load(self, parcel_key: str, sensor: str) -> SampleCube:
+        loader = self.loaders.get(sensor, self.default)
+        if loader is None:
+            raise ValueError(
+                f"No loader configured for sensor '{sensor}'. "
+                f"Available: {list(self.loaders)}"
+            )
+        return loader.load(parcel_key, sensor)
+
+
+def make_era5_timeseries_pipeline(
+    era5_path: Path | str,
+    config: Path | str | DatasetConfig | None = None,
+    stats: List[str] | None = None,
+) -> DatasetPipeline:
+    """Build a pipeline backed by per-parcel ERA5 timeseries ZIP archives.
+
+    Parameters
+    ----------
+    era5_path:
+        Root directory that contains one sub-directory per parcel, e.g.
+        ``data/output/files/ERA5_TIMESERIES``.
+    config:
+        Optional dataset config (path to YAML or ``DatasetConfig`` instance).
+        When provided the ERA5 sensor section is used for indices, stats, and
+        temporal compositing.
+    stats:
+        Fallback spatial statistics when *config* is not provided.
+    """
+    if config is not None and not isinstance(config, DatasetConfig):
+        config = DatasetConfig.from_yaml(config)
+    return DatasetPipeline(
+        loader=ERA5TimeseriesLoader(era5_path),
+        stats=stats,
+        config=config,
+    )
+
+
+def make_composite_pipeline(
+    base_path: Path | str,
+    era5_path: Path | str,
+    config: Path | str | DatasetConfig | None = None,
+    stats: List[str] | None = None,
+) -> DatasetPipeline:
+    """Build a pipeline that serves ERA5 from timeseries ZIPs and everything
+    else from the zarr store.
+
+    Parameters
+    ----------
+    base_path:
+        Agrixel zarr output root (used for SENTINEL-2, SENTINEL-1, etc.).
+    era5_path:
+        Root directory for per-parcel ERA5 ZIP archives.
+    config:
+        Optional dataset config (path to YAML or ``DatasetConfig`` instance).
+    stats:
+        Fallback spatial statistics when *config* is not provided.
+    """
+    if config is not None and not isinstance(config, DatasetConfig):
+        config = DatasetConfig.from_yaml(config)
+    loader = CompositeLoader(
+        loaders={"ERA5": ERA5TimeseriesLoader(era5_path)},
+        default=ZarrBandLoader(base_path),
+    )
+    return DatasetPipeline(loader=loader, stats=stats, config=config)

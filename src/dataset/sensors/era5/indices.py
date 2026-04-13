@@ -20,16 +20,6 @@ import xarray as xr
 from ...loader import SampleCube
 from ..base import IndexCalculator, PlotStyle
 
-# Correction factor for summing 24 accumulated hourly values instead of
-# deaccumulating first: sum(1..24)/24 = 300/24 = 12.5
-_ACCUM_CORRECTION = 12.5
-
-
-def preprocess_era5(cube: SampleCube) -> None:
-    """Correct ERA5-Land accumulated-variable bias in ``tp`` (in-place)."""
-    if cube.has_band("tp"):
-        cube.replace_band("tp", cube.band("tp") / _ACCUM_CORRECTION)
-
 
 class TotalPrecipMM(IndexCalculator):
     """Total precipitation in millimeters = tp * 1000."""
@@ -45,6 +35,21 @@ class TotalPrecipMM(IndexCalculator):
         return cube.band("tp").astype("float32") * 1000.0
 
 
+class T2mCelsius(IndexCalculator):
+    """2-metre air temperature in Celsius = t2m - 273.15."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            name="T2M_C",
+            required_bands=["t2m"],
+            plot_style=PlotStyle(cmap="RdBu_r", vmin=-10.0, vmax=45.0),
+        )
+
+    def compute(self, cube: SampleCube) -> xr.DataArray:
+        return cube.band("t2m").astype("float32") - 273.15
+
+
 ERA5_CALCULATORS: List[IndexCalculator] = [
     TotalPrecipMM(),
+    T2mCelsius(),
 ]

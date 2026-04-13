@@ -133,15 +133,39 @@ class SampleCube:
     def composite_temporal(self, config: TemporalConfig) -> "SampleCube":
         ds = self._ds
 
-        # If both resample and rolling are configured, use smooth (resample + per-year rolling)
         if config.resample is not None and config.rolling is not None:
+            # Resample to a regular grid then apply per-year rolling smoothing
             agg = config.resample.agg
             if isinstance(agg, list):
                 agg = agg[0]
             ds = smooth_dataset(ds, config.resample.freq, config.rolling.window, agg)
+        elif config.resample is not None:
+            # Resample only (no rolling) — used for cumulative variables like precipitation
+            agg = config.resample.agg
+            if isinstance(agg, list):
+                agg = agg[0]
+            agg_by_var = config.resample.agg_by_variable or {}
+            if agg_by_var:
+                # Apply per-variable aggregation then merge back into a Dataset
+                resampled_vars = {}
+                for vname in ds.data_vars:
+                    var_agg = agg_by_var.get(vname, agg)
+                    resampled_vars[vname] = getattr(
+                        ds[vname].resample(time=config.resample.freq), var_agg
+                    )()
+                ds = xr.Dataset(resampled_vars)
+            else:
+                resampler = ds.resample(time=config.resample.freq)
+                if agg == "sum":
+                    ds = resampler.sum()
+                elif agg == "mean":
+                    ds = resampler.mean()
+                elif agg == "median":
+                    ds = resampler.median()
+                else:
+                    ds = getattr(resampler, agg)()
         else:
-            raise Exception("Rolling not configured")
-
+            raise ValueError("TemporalConfig must specify at least resample.")
 
         return SampleCube(ds, sensor=self.sensor, parcel_key=self.parcel_key)
 

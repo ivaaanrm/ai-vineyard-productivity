@@ -186,12 +186,12 @@ class NDRE(IndexCalculator):
     def __init__(self) -> None:
         super().__init__(
             name="NDRE",
-            required_bands=["B8A", "B05"],
+            required_bands=["B08", "B05"],
             plot_style=PlotStyle(cmap="RdYlGn", vmin=-1.0, vmax=1.0),
         )
 
     def compute(self, cube: SampleCube) -> xr.DataArray:
-        vre = cube.band("B8A").astype("float32")  # Vegetation Red Edge (865 nm)
+        vre = cube.band("B08").astype("float32")  # Vegetation Red Edge (865 nm)
         re1 = cube.band("B05").astype("float32")  # Red Edge 1 (705 nm)
         denom = vre + re1
         return ((vre - re1) / denom).where(denom != 0)

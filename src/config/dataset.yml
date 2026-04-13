@@ -1,7 +1,7 @@
 # ── I/O ──────────────────────────────────────────────────────────────
 # inputs:  paths.aoi_table, raw zarr cubes
 # outputs: output_dir/dataset.csv
-output_dir: data/experiments/EXP_20260410  # null → experiments/data
+output_dir: data/experiments/EXP_20260413  # null → experiments/data
 
 parcel_mask: true
 mask_erosion_pixels: 0.0  # inward erosion of geometry in pixels; 0 = no erosion
@@ -27,6 +27,7 @@ stats:
 
 sensors:
   SENTINEL-2:
+    enabled: true
     # 10m optical — bimodal soil/canopy distribution within the parcel.
     # p75 targets the vine canopy cluster; p90 captures dense-canopy pixels.
     # mean kept as the full mixed signal; std captures row structure.
@@ -59,16 +60,17 @@ sensors:
       # - SAVI
       # - NBR2
       # - NDWI
-      - B02   # Blue
-      - B03   # Green
-      - B04   # Red
-      - B05   # Red Edge 1 (for NDRE, IRECI, S2REP)
+      # - B02   # Blue
+      # - B03   # Green
+      # - B04   # Red
+      # - B05   # Red Edge 1 (for NDRE, IRECI, S2REP)
       # - B06   # Red Edge 2 (for IRECI, S2REP)
       # - B07   # Red Edge 3 (for IRECI)
-      - B08   # NIR
-      - B11   # SWIR1
+      # - B08   # NIR
+      # - B11   # SWIR1
 
   SENTINEL-1:
+    enabled: false
     # 10m SAR — volume scattering integrates soil+canopy; soil moisture signal
     # is agronomically meaningful. p75/p90 risk picking up trellis double-bounce.
     mask_erosion_pixels: 2.0  # shrink 1 pixel (~10m) inward
@@ -87,6 +89,7 @@ sensors:
       # - DpRVI
 
   SENTINEL-3:
+    enabled: false
     # 1km thermal — parcel spans 0–4 pixels at most. Geometry clipping at this
     # resolution produces empty/all-NaN cubes; use the full tile mean instead.
     parcel_mask: false
@@ -99,18 +102,28 @@ sensors:
       - LST_C
 
   ERA5:
+    enabled: true
     # ~11km — single pixel per parcel. Geometry masking makes no sense.
     parcel_mask: false
     stats: [mean]
     compute_indices:
       - TP_MM
+      - T2M_C
     output_bands:
-      - TP_MM
+      - TP_MM       # monthly total precipitation (mm)
+      - T2M_C      # monthly mean temperature (°C)
+      - frost_days  # number of frost days in period (Tmin < 0°C)
     temporal:
       resample:
-        agg: [sum]        # total precip in period
+        agg: mean          # default; overridden per variable below
+        agg_by_variable:
+          tp: sum          # total precip in period (m → converted to mm by TP_MM)
+          t2m: mean        # mean temperature in period (K → converted to °C by T2M_C)
+          t2m_min: min     # absolute minimum temperature in period
+          frost_days: sum  # count of frost days (daily Tmin < 0°C) in period
 
   MODIS:
+    enabled: false
     # 500m — too coarse for meaningful intra-parcel masking.
     parcel_mask: false
     stats: [mean]

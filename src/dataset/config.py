@@ -19,6 +19,7 @@ _ALLOWED_TEMPORAL_AGGS = {"mean", "median", "min", "max", "sum", "std"}
 class ResampleConfig(BaseModel):
     freq: str | None = None
     agg: Union[str, List[str]] = "median"
+    agg_by_variable: Dict[str, str] | None = None  # per-variable override, e.g. {tp: sum, t2m: mean}
 
     @model_validator(mode="after")
     def _check_agg(self) -> ResampleConfig:
@@ -28,6 +29,13 @@ class ResampleConfig(BaseModel):
             raise ValueError(
                 f"Unknown agg(s): {unknown}. Allowed: {_ALLOWED_TEMPORAL_AGGS}"
             )
+        if self.agg_by_variable:
+            unknown_var = set(self.agg_by_variable.values()) - _ALLOWED_TEMPORAL_AGGS
+            if unknown_var:
+                raise ValueError(
+                    f"Unknown agg(s) in agg_by_variable: {unknown_var}. "
+                    f"Allowed: {_ALLOWED_TEMPORAL_AGGS}"
+                )
         return self
 
 
@@ -51,6 +59,7 @@ class TemporalConfig(BaseModel):
 
 
 class SensorConfig(BaseModel):
+    enabled: bool = True
     compute_indices: List[str] = Field(default_factory=list)
     output_bands: List[str]
     stats: List[str] | None = None                    # None → inherit global stats
@@ -77,6 +86,10 @@ class DatasetConfig(BaseModel):
     mask_erosion_pixels: float = 0.0  # inward geometry erosion in pixels; 0 = no erosion
     fuse_sensors: bool = False
     output_dir: str | None = None  # explicit output directory; None → cwd
+
+    def enabled_sensors(self) -> List[str]:
+        """Return sensor names where ``enabled: true`` (default when omitted)."""
+        return [name for name, cfg in self.sensors.items() if cfg.enabled]
 
     @classmethod
     def from_yaml(cls, path: Path | str) -> DatasetConfig:

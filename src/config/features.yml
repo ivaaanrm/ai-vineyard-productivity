@@ -1,13 +1,14 @@
 # ── I/O ──────────────────────────────────────────────────────────────
 # inputs:  dataset_csv, targets_csv
 # outputs: output_dir/features.csv
-dataset_csv: data/experiments/EXP_20260412/dataset.csv
+dataset_csv: data/experiments/EXP_20260413/dataset.csv
 targets_csv: data/datasets/1000_METADATA.csv
 output_dir: null  # null → same dir as dataset_csv
 max_null_pct: 30.0
 interpolate_missing: true
 
-columns: 
+columns:
+  # ── Sentinel-2 vegetation indices ──────────────────────────────────
   # - B02
   # - B03
   # - B04
@@ -23,6 +24,10 @@ columns:
   # - VH_VV
   # - VH
   # - LST_C
+  # ── ERA5 climate ────────────────────────────────────────────────────
+  - TP_MM        # monthly total precipitation (mm)
+  - T2M_C       # monthly mean temperature (°C)
+  - frost_days   # number of frost days in month (Tmin < 0°C)
 
 target_columns:
   - yield_T_ha
@@ -38,7 +43,7 @@ extractors:
 
   phenology_phases:
     phases:
-      # dormancy:     [1, 2]
+      dormancy:     [12, 1, 2]   # frost risk window
       budbreak:     [3, 4]
       flowering:    [5, 6]
       veraison:     [7, 8]
@@ -46,6 +51,7 @@ extractors:
       # postharvest:  [10, 11]
     aggs:
       - mean
+      # - sum        # cumulative for frost_days and TP_MM
 
   temporal_deltas: false
   peak_metrics: false
@@ -64,6 +70,8 @@ extractors:
       # - NDVI
       - IRECI
       # - B05
+      - TP_MM       # cumulative precipitation per phase
+      - frost_days  # cumulative frost exposure per phase
     phases:
       # budbreak:  [3, 4]
       flowering: [4, 5, 6]
