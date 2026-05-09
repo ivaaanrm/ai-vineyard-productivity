@@ -84,6 +84,7 @@ class ParcelStatsExtractor:
                 "parcel_id": cube.parcel_key,
                 "year": ts.year,
                 "month": ts.month,
+                "doy": ts.day_of_year,
                 "sensor": cube.sensor,
             }
             for layer_name, da in layers.items():

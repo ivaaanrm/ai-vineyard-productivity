@@ -38,11 +38,17 @@ class PhaseIntegralExtractor:
     def extract(self, group: pd.DataFrame, columns: list[str]) -> dict[str, float]:
         cols = self.columns if self.columns is not None else columns
         result: dict[str, float] = {}
-        sorted_g = group.sort_values("month")
+
+        # Use DOY as the time axis when available — month integers collapse all
+        # weekly samples within a month to the same x value, making trapz wrong.
+        use_doy = "doy" in group.columns
+        sort_col = "doy" if use_doy else "month"
+        x_col = "doy" if use_doy else "month"
+        sorted_g = group.sort_values(sort_col)
 
         for phase_name, months in self.phases.items():
             phase_data = sorted_g[sorted_g["month"].isin(months)]
-            x = phase_data["month"].values.astype(float)
+            x = phase_data[x_col].values.astype(float)
 
             for col in cols:
                 if col not in phase_data.columns:

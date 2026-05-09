@@ -50,6 +50,7 @@ class SampleCube:
         else:
             self._ds = ds
         self.parcel_mask = parcel_mask
+        self.is_normalized = False
 
     @property
     def ds(self) -> xr.Dataset:
@@ -129,6 +130,95 @@ class SampleCube:
     def replace_band(self, name: str, new_da: xr.DataArray) -> None:
         """Replace an existing band's data in place."""
         self._ds[name] = new_da
+
+    def drop_duplicate_times(self) -> "SampleCube":
+        """Drop duplicate timestamps, keeping the first occurrence.
+
+        Duplicate acquisitions can appear when split zarr cubes overlap or when
+        the same tile is ingested twice.  Returns ``self`` when no duplicates
+        are found (zero-cost path).
+        """
+        times = self.times
+        _, unique_idx = np.unique(times, return_index=True)
+        n_dropped = len(times) - len(unique_idx)
+        if n_dropped == 0:
+            return self
+        # print(
+        #     f"   🔁  Dedup ({self.parcel_key}): dropped {n_dropped} duplicate "
+        #     f"timestep(s) out of {len(times)}"
+        # )
+        return SampleCube(
+            self._ds.isel(time=np.sort(unique_idx)),
+            sensor=self.sensor,
+            parcel_key=self.parcel_key,
+        )
+
+    def drop_corrupt_times(self, max_nan_fraction: float = 0.8) -> "SampleCube":
+        """Drop timesteps where the fraction of NaN pixels exceeds *max_nan_fraction*.
+
+        Fully corrupt or entirely clouded acquisitions appear as all-NaN frames.
+        A threshold of 0.8 (80%) catches broken images while tolerating small
+        patches of missing data at tile edges.
+
+        Returns ``self`` unchanged when no timesteps would survive the filter.
+        """
+        if not self._ds.data_vars:
+            return self
+
+        stacked = self._ds.to_array(dim="_band")  # (band, time, y, x)
+        nan_frac = stacked.isnull().mean(dim=["_band", "y", "x"])  # (time,)
+
+        good_times = nan_frac.time.where(nan_frac <= max_nan_fraction, drop=True)
+        n_dropped = len(self.times) - len(good_times)
+        # if n_dropped > 0:
+        #     print(
+        #         f"   🗑  Corrupt filter ({self.parcel_key}): dropped {n_dropped} / "
+        #         f"{len(self.times)} timesteps (NaN fraction > {max_nan_fraction:.0%})"
+        #     )
+        if len(good_times) == 0:
+            # print(
+            #     f"   ⚠  Corrupt filter: all timesteps dropped for {self.parcel_key}"
+            #     " — keeping original."
+            # )
+            return self
+
+        return SampleCube(
+            self._ds.sel(time=good_times), sensor=self.sensor, parcel_key=self.parcel_key
+        )
+
+    def drop_cloudy_times(self, ndvi_threshold: float = 0.1) -> "SampleCube":
+        """Drop timesteps where the spatial-mean NDVI is below *ndvi_threshold*.
+
+        A fully-clouded acquisition has no vegetation signal — NDVI collapses
+        toward 0 (or negative).  Bare soil sits around 0.1–0.2, so the default
+        threshold of 0.1 catches cloud-only frames while preserving winter/bare
+        scenes.
+
+        Requires B08 and B04 to be present and already in reflectance units
+        (i.e. ``preprocess_s2`` must have run first).  Returns ``self`` unchanged
+        when the bands are absent so the pipeline degrades gracefully.
+        """
+        if not (self.has_band("B08") and self.has_band("B04")):
+            return self
+
+        nir = self._ds["B08"].astype("float32")
+        red = self._ds["B04"].astype("float32")
+        denom = nir + red
+        ndvi = ((nir - red) / denom.where(denom != 0)).mean(dim=["y", "x"])
+
+        good_times = ndvi.time.where(ndvi >= ndvi_threshold, drop=True)
+        n_dropped = len(self.times) - len(good_times)
+        # if n_dropped > 0:
+        #     print(
+        #         f"   ☁️  Cloud filter ({self.parcel_key}): dropped {n_dropped} / "
+        #         f"{len(self.times)} timesteps (mean NDVI < {ndvi_threshold})"
+        #     )
+        if len(good_times) == 0:
+            # print(f"   ⚠️  Cloud filter: all timesteps dropped for {self.parcel_key} — keeping original.")
+            return self
+
+        ds_filtered = self._ds.sel(time=good_times)
+        return SampleCube(ds_filtered, sensor=self.sensor, parcel_key=self.parcel_key)
 
     def composite_temporal(self, config: TemporalConfig) -> "SampleCube":
         ds = self._ds

@@ -7,12 +7,17 @@ scale factor of 10 000 (i.e. reflectance = DN / 10 000).  Call
 ``preprocess_s2`` on every cube before computing any index that uses additive
 constants (EVI, EVI2, SAVI, GVMI).  NDVI and GNDVI are ratio-based and
 scale-invariant, but normalising consistently avoids silent errors.
+
+ESA processing baseline 04.00 (rollout started 2022-01-25) added a +1000 DN
+offset to all bands to support negative-reflectance encoding.  ``preprocess_s2``
+detects this per-timestep and subtracts the offset before scaling.
 """
 
 from __future__ import annotations
 
 from typing import List
 
+import numpy as np
 import xarray as xr
 
 from ...loader import SampleCube
@@ -24,21 +29,37 @@ from ..base import IndexCalculator, PlotStyle
 # ---------------------------------------------------------------------------
 
 _S2_SCALE = 10_000.0  # L2A DN → reflectance
+_S2_BASELINE_400_OFFSET = 1000.0  # added in processing baseline 04.00+
+_S2_BASELINE_400_DATE = np.datetime64("2022-01-25", "ns")
 
 
 def preprocess_s2(cube: SampleCube) -> None:
-    """Normalise Sentinel-2 DN values (0–10 000) to reflectance (0–1).
+    """Normalize Sentinel-2 DN to reflectance (0–1)."""
 
-    Must be called before any index that contains additive constants
-    (EVI, EVI2, SAVI, GVMI).  Safe to call multiple times — skipped when
-    values are already ≤ 1.
-    """
-    for band in list(cube.variables):
-        da = cube.band(band)
-        # Guard: skip if already normalised (median well below 1)
-        if float(da.median()) <= 1.0:
-            continue
-        cube.replace_band(band, (da.astype("float32") / _S2_SCALE).clip(0.0, 1.0))
+    if getattr(cube, "is_normalized", False):
+        return
+
+    times = cube.ds.coords["time"].values.astype("datetime64[ns]")
+
+    offset_values = np.where(
+        times >= _S2_BASELINE_400_DATE,
+        _S2_BASELINE_400_OFFSET,
+        0.0
+    ).astype("float32")
+
+    offset = xr.DataArray(
+        offset_values,
+        dims=["time"],
+        coords={"time": cube.ds.coords["time"]}
+    )
+
+    for band in cube.variables:
+        da = cube.band(band).astype("float32")
+
+        corrected = (da - offset).clip(min=0.0) / _S2_SCALE
+        cube.replace_band(band, corrected.clip(0.0, 1.0))
+
+    cube.is_normalized = True
 
 
 class NDVI(IndexCalculator):
@@ -237,12 +258,19 @@ class S2REP(IndexCalculator):
         )
 
     def compute(self, cube: SampleCube) -> xr.DataArray:
-        red = cube.band("B04").astype("float32")  # Red (665 nm)
-        re1 = cube.band("B05").astype("float32")  # Red Edge 1 (705 nm)
-        re2 = cube.band("B06").astype("float32")  # Red Edge 2 (740 nm)
-        nir = cube.band("B08").astype("float32")  # NIR (842 nm)
+        red = cube.band("B04").astype("float32")
+        re1 = cube.band("B05").astype("float32")
+        re2 = cube.band("B06").astype("float32")
+        nir = cube.band("B08").astype("float32")
+
         denom = re2 - re1
-        return (705 + 35 * (((red + nir) / 2) - re1) / denom).where(denom != 0)
+        eps = 1e-6
+        denom_safe = xr.where(abs(denom) < eps, np.nan, denom)
+
+        s2rep = 705 + 35 * (((red + nir) / 2) - re1) / denom_safe
+
+        # Optional physical filtering
+        return s2rep.where((s2rep > 680) & (s2rep < 780))
 
 
 S2_CALCULATORS: List[IndexCalculator] = [

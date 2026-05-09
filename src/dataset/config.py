@@ -66,6 +66,8 @@ class SensorConfig(BaseModel):
     temporal: TemporalConfig | None = None            # None → inherit global temporal
     parcel_mask: bool | None = None                   # None → inherit global parcel_mask
     mask_erosion_pixels: float | None = None          # None → inherit global mask_erosion_pixels
+    corrupt_filter_nan_fraction: float | None = None  # drop timesteps where NaN pixel fraction > this; None = disabled
+    cloud_filter_ndvi: float | None = None            # drop timesteps with mean NDVI below this; None = disabled
 
     @model_validator(mode="after")
     def _check_known_indices(self) -> SensorConfig:
@@ -136,6 +138,16 @@ class DatasetConfig(BaseModel):
         if cfg and cfg.mask_erosion_pixels is not None:
             return cfg.mask_erosion_pixels
         return self.mask_erosion_pixels
+
+    def corrupt_filter_nan_fraction_for(self, sensor: str) -> float | None:
+        """Return the max NaN fraction for corrupt-image filtering, or None if disabled."""
+        cfg = self.sensors.get(sensor)
+        return cfg.corrupt_filter_nan_fraction if cfg else None
+
+    def cloud_filter_ndvi_for(self, sensor: str) -> float | None:
+        """Return the NDVI cloud-filter threshold for a sensor, or None if disabled."""
+        cfg = self.sensors.get(sensor)
+        return cfg.cloud_filter_ndvi if cfg else None
 
     def temporal_for(self, sensor: str) -> TemporalConfig | None:
         """Return temporal config for a sensor (per-sensor override merged with global)."""

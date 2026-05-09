@@ -14,6 +14,7 @@ class PhenologyPhasesConfig(BaseModel):
 
     phases: Dict[str, List[int]] | None = None  # None → use defaults
     aggs: List[str] = ["mean", "max"]
+    agg_by_column: Dict[str, List[str]] | None = None  # column → agg overrides
 
 
 class SeasonMetricsConfig(BaseModel):
@@ -52,18 +53,36 @@ class PhaseIntegralConfig(BaseModel):
     columns: List[str] | None = None  # None → use parent-level columns
 
 
+class HistoricalFeaturesConfig(BaseModel):
+    """Config for cross-year historical yield features."""
+
+    target_column: str = "yield_T_ha"
+    variety_column: str = "variety"
+    split_column: str = "split"
+    train_label: str = "train"
+
+
 class StaticFeaturesConfig(BaseModel):
     """Config for static parcel feature encoding."""
 
     categorical_columns: List[str] = ["certification", "variety"]
+    one_hot_columns: List[str] = []
     planting_date_column: str | None = "planting_date"
     rainfed_column: str | None = "rainfed"
+
+
+class DOYPivotConfig(BaseModel):
+    """Config for DOY pivot extractor."""
+
+    doy_start: int | None = 60   # first DOY of growing season (default: March 1)
+    doy_end: int | None = 274    # last DOY of growing season (default: September 30)
 
 
 class ExtractorsConfig(BaseModel):
     """Which extractors to run and their parameters."""
 
     monthly: bool = True
+    doy_pivot: DOYPivotConfig | None = None
     phenology_phases: PhenologyPhasesConfig | None = PhenologyPhasesConfig()
     temporal_deltas: bool = True
     peak_metrics: bool = True
@@ -72,6 +91,7 @@ class ExtractorsConfig(BaseModel):
     phase_integral: PhaseIntegralConfig | None = None
     boolean_features: BooleanFeaturesConfig | None = None
     harvest_date: HarvestDateConfig | None = None
+    historical_features: HistoricalFeaturesConfig | None = None
     static_features: StaticFeaturesConfig | None = None
 
 

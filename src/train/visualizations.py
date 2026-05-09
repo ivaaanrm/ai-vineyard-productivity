@@ -67,8 +67,8 @@ def save_performance_plots(
     # ax.axhline(gt_mean, color="navy", linestyle="--", linewidth=1, alpha=0.7,
     #            label=f"mean={gt_mean:.2f}")
     # ax.axvline(gt_mean, color="navy", linestyle="--", linewidth=1, alpha=0.7)
-    ax.set_xscale("log")
-    ax.set_yscale("log")
+    # ax.set_xscale("log")
+    # ax.set_yscale("log")
     ax.set_xlim(x_min, x_max)
     ax.set_ylim(y_min, y_max)
     for axis in (ax.xaxis, ax.yaxis):

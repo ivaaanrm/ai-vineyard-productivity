@@ -1,22 +1,22 @@
 # ── I/O ──────────────────────────────────────────────────────────────
 # inputs:  paths.aoi_table, raw zarr cubes
 # outputs: output_dir/dataset.csv
-output_dir: data/experiments/EXP_20260413  # null → experiments/data
+output_dir: data/experiments/EXP_20260420  # null → experiments/data
 
 parcel_mask: true
-mask_erosion_pixels: 0.0  # inward erosion of geometry in pixels; 0 = no erosion
+mask_erosion_pixels: 1.0  # inward erosion of geometry in pixels; 0 = no erosion
 fuse_sensors: true
 
 paths:
-  aoi_table: data/aoi_table.csv
+  aoi_table: data/datasets/aoi-tarragona.csv
 
 # Temporal aggregation (optional)
 temporal:
   resample:
-    freq: "ME"       # pandas offset: MS=month-start, 4W=4-weeks, 2W=biweekly, ME=month-end
+    freq: "1W"       # pandas offset: MS=month-start, 4W=4-weeks, 2W=biweekly, ME=month-end
     agg: "median"    # mean, median, min, max, sum, std
   rolling:
-    window: 2
+    window: 3
     min_periods: 1
     agg: "median"    # centered rolling median per year
 
@@ -31,7 +31,9 @@ sensors:
     # 10m optical — bimodal soil/canopy distribution within the parcel.
     # p75 targets the vine canopy cluster; p90 captures dense-canopy pixels.
     # mean kept as the full mixed signal; std captures row structure.
-    mask_erosion_pixels: 2.0  # shrink 1 pixel (~10m) inward — excludes row-edge pixels
+    mask_erosion_pixels: 1.0  # shrink 1 pixel (~10m) inward — excludes row-edge pixels
+    corrupt_filter_nan_fraction: 0.3  # drop acquisitions where > 80% of pixels are NaN (corrupt/missing data)
+    cloud_filter_ndvi: 0.1    # drop acquisitions where mean NDVI < 0.1 (cloud-only frames)
     stats:
       - mean
       # - std
@@ -41,52 +43,54 @@ sensors:
       - NDVI
       - NDRE    # most sensitive to LAI in vineyards
       - IRECI   # better yield predictor than NDVI
-      # - S2REP   # water stress and nitrogen
+      - S2REP   # water stress and nitrogen
       - GVMI   # canopy moisture / substrate indicator
-      # - EVI
-      # - EVI2   # 2-band EVI, more stable than NDVI across years
-      # - SAVI
-      # - NDWI
-      - GNDVI  # chlorophyll concentration 
+      - EVI
+      - EVI2   # 2-band EVI, more stable than NDVI across years
+      - SAVI
+      - NDWI
+      - GNDVI  # chlorophyll concentration
+      - S2REP 
     output_bands:
       - NDVI
       - NDRE
       - IRECI
-      # - S2REP
-      # - EVI2
+      - S2REP
+      - EVI2
       - GVMI
       - GNDVI
-      # - EVI
-      # - SAVI
-      # - NBR2
-      # - NDWI
-      # - B02   # Blue
-      # - B03   # Green
-      # - B04   # Red
-      # - B05   # Red Edge 1 (for NDRE, IRECI, S2REP)
-      # - B06   # Red Edge 2 (for IRECI, S2REP)
-      # - B07   # Red Edge 3 (for IRECI)
-      # - B08   # NIR
-      # - B11   # SWIR1
+      - EVI
+      - SAVI
+      - NBR2
+      - NDWI
+      - B02   # Blue
+      - B03   # Green
+      - B04   # Red
+      - B05   # Red Edge 1 (for NDRE, IRECI, S2REP)
+      - B06   # Red Edge 2 (for IRECI, S2REP)
+      - B07   # Red Edge 3 (for IRECI)
+      - B08   # NIR
+      - B11   # SWIR1
 
   SENTINEL-1:
     enabled: false
     # 10m SAR — volume scattering integrates soil+canopy; soil moisture signal
     # is agronomically meaningful. p75/p90 risk picking up trellis double-bounce.
     mask_erosion_pixels: 2.0  # shrink 1 pixel (~10m) inward
+    corrupt_filter_nan_fraction: 0.8  # drop acquisitions where > 80% of pixels are NaN
     stats:
       - mean
       # - std
     compute_indices:
       - RVI
       - VH_VV
-      # - DpRVI
+      - DpRVI
     output_bands:
       - VV
       - VH
       - RVI
       - VH_VV
-      # - DpRVI
+      - DpRVI
 
   SENTINEL-3:
     enabled: false
@@ -102,7 +106,7 @@ sensors:
       - LST_C
 
   ERA5:
-    enabled: true
+    enabled: false
     # ~11km — single pixel per parcel. Geometry masking makes no sense.
     parcel_mask: false
     stats: [mean]

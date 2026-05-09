@@ -9,8 +9,10 @@ import pandas as pd
 from .config import FeaturesConfig
 from .extractors import (
     BooleanFeaturesExtractor,
+    DOYPivotExtractor,
     FeatureExtractor,
     HarvestDateExtractor,
+    HistoricalFeaturesProcessor,
     MonthlyPivotExtractor,
     PeakMetricsExtractor,
     PhaseDeltaExtractor,
@@ -74,11 +76,21 @@ class FeaturePipeline:
         features_df = self.extract_features(df)
         result = self._merge_targets(features_df, targets_df)
 
+        if self.config.extractors.historical_features is not None:
+            cfg = self.config.extractors.historical_features
+            processor = HistoricalFeaturesProcessor(
+                target_column=cfg.target_column,
+                variety_column=cfg.variety_column,
+                split_column=cfg.split_column,
+                train_label=cfg.train_label,
+            )
+            result = processor.process(result)
 
         if self.config.extractors.static_features is not None:
             cfg = self.config.extractors.static_features
             processor = StaticFeaturesProcessor(
                 categorical_columns=cfg.categorical_columns,
+                one_hot_columns=cfg.one_hot_columns,
                 planting_date_column=cfg.planting_date_column,
                 rainfed_column=cfg.rainfed_column,
             )
@@ -97,7 +109,8 @@ class FeaturePipeline:
         records: list[Dict[str, object]] = []
         for (parcel_id, year), group in df.groupby(["parcel_id", "year"]):
             row: Dict[str, object] = {"parcel_id": parcel_id, "year": year}
-            sorted_group = group.sort_values("month").reset_index(drop=True)
+            sort_col = "doy" if "doy" in group.columns else "month"
+            sorted_group = group.sort_values(sort_col).reset_index(drop=True)
 
             if self.config.interpolate_missing:
                 num_cols = [c for c in self.config.columns if c in sorted_group.columns]
@@ -124,10 +137,18 @@ class FeaturePipeline:
         if cfg.monthly:
             extractors.append((MonthlyPivotExtractor(), self.config.columns))
 
+        if cfg.doy_pivot is not None:
+            ext = DOYPivotExtractor(
+                doy_start=cfg.doy_pivot.doy_start,
+                doy_end=cfg.doy_pivot.doy_end,
+            )
+            extractors.append((ext, self.config.columns))
+
         if cfg.phenology_phases is not None:
             ext = PhenologyPhaseExtractor(
                 phases=cfg.phenology_phases.phases,
                 aggs=cfg.phenology_phases.aggs,
+                agg_by_column=cfg.phenology_phases.agg_by_column,
             )
             extractors.append((ext, self.config.columns))
 

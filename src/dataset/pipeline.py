@@ -84,10 +84,19 @@ class DatasetPipeline:
         """
         cube = self.load(parcel_key, sensor)
 
-        # Mask before temporal compositing (exclude non-parcel pixels).
-        # Coarse-resolution sensors (S3, ERA5, MODIS) skip masking via
-        # per-sensor parcel_mask: false — their pixels are already larger
-        # than most parcels so geometry clipping produces empty/NaN cubes.
+        # Remove duplicate timestamps (e.g. overlapping split zarrs)
+        cube = cube.drop_duplicate_times()
+        
+        # Drop corrupt/missing timesteps (NaN-dominated frames)
+        nan_threshold = self.config.corrupt_filter_nan_fraction_for(sensor) if self.config else None
+        if nan_threshold is not None:
+            cube = cube.drop_corrupt_times(nan_threshold)
+
+        # Drop cloud-dominated timesteps before temporal compositing
+        ndvi_threshold = self.config.cloud_filter_ndvi_for(sensor) if self.config else None
+        if ndvi_threshold is not None:
+            cube = cube.drop_cloudy_times(ndvi_threshold)
+
         should_mask = (
             geometry is not None
             and self.config is not None
@@ -96,6 +105,8 @@ class DatasetPipeline:
         if should_mask:
             erosion = self.config.erosion_for(sensor) if self.config else 0.0
             cube = cube.mask(geometry, erosion_pixels=erosion)
+
+
 
         # Temporal compositing on raw bands (cube level)
         temporal_cfg = self.config.temporal_for(sensor) if self.config else None
@@ -125,6 +136,13 @@ class DatasetPipeline:
         geometries: Dict[str, str] | None = None,
     ) -> pd.DataFrame:
 
+        # Deduplicate parcel keys before processing to avoid processing same parcel twice
+        seen: set = set()
+        unique_keys = [k for k in parcel_keys if not (k in seen or seen.add(k))]
+        # if len(unique_keys) < len(parcel_keys):
+        #     print(f"   Dedup: removed {len(parcel_keys) - len(unique_keys)} duplicate parcel key(s)")
+        parcel_keys = unique_keys
+
         frames: List[pd.DataFrame] = []
         error_frames = []
         for parcel_key in tqdm(parcel_keys, desc="Computing parcels"):
@@ -142,14 +160,31 @@ class DatasetPipeline:
         print("Parcel with errors: ", error_frames)
 
         df = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+
+        # Drop exact duplicate rows (same parcel, time, sensor, and all feature values)
+        if not df.empty:
+            n_before = len(df)
+            df = df.drop_duplicates()
+            n_dropped = n_before - len(df)
+            # if n_dropped > 0:
+            #     print(f"   Dedup: dropped {n_dropped} duplicate row(s) from output DataFrame")
+
         if not df.empty and self.config and self.config.fuse_sensors:
             df = self._fuse_sensors(df)
+
+        # Drop rows where every sensor feature column is NaN
+        if not df.empty:
+            key_cols = [c for c in ("parcel_id", "year", "month", "doy", "sensor") if c in df.columns]
+            feature_cols = [c for c in df.columns if c not in key_cols]
+            if feature_cols:
+                df = df.dropna(subset=feature_cols, how="all")
+
         return df
 
     @staticmethod
     def _fuse_sensors(df: pd.DataFrame) -> pd.DataFrame:
         """Collapse multiple sensor rows into one row per (parcel_key, time)."""
-        group_cols = ["parcel_id", "year", "month"]
+        group_cols = ["parcel_id", "year", "month", "doy"]
         agg = {}
         for col in df.columns:
             if col in group_cols or col == "sensor":
